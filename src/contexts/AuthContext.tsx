@@ -103,6 +103,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
     
     try {
+      console.log("Criando perfil para o usuário:", userId);
+      
       // Primeiro criamos uma clínica para o usuário
       const { data: clinicData, error: clinicError } = await supabase
         .from('clinics')
@@ -112,9 +114,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .select('id')
         .single();
         
-      if (clinicError) throw clinicError;
+      if (clinicError) {
+        console.error("Erro ao criar clínica:", clinicError);
+        throw clinicError;
+      }
       
       if (clinicData) {
+        console.log("Clínica criada com sucesso:", clinicData);
+        
         // Depois criamos o perfil do usuário com a clínica
         const { error: profileError } = await supabase
           .from('profiles')
@@ -125,7 +132,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             clinic_id: clinicData.id
           });
           
-        if (profileError) throw profileError;
+        if (profileError) {
+          console.error("Erro ao criar perfil:", profileError);
+          throw profileError;
+        }
         
         console.log("Perfil do usuário criado com sucesso");
       }
@@ -140,15 +150,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Tentando fazer login com:", email);
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
       
-      if (error) throw error;
-      
+      if (error) {
+        console.error("Erro ao fazer login:", error);
+        throw error;
+      }
+
+      console.log("Login bem-sucedido:", data.user?.email);
       navigate('/dashboard');
     } catch (error: any) {
+      console.error("Erro completo ao fazer login:", error);
       toast.error("Erro ao fazer login: " + error.message);
       throw error;
     } finally {

@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 // Esquema de validação para o formulário
 const loginSchema = z.object({
@@ -32,6 +32,7 @@ const Login = () => {
   const [isRegister, setIsRegister] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailConfirmationNeeded, setEmailConfirmationNeeded] = useState(false);
   const { signIn, isAuthenticated } = useAuth();
 
   // Inicializar o formulário com zod resolver
@@ -46,12 +47,14 @@ const Login = () => {
   // Limpar erros quando alternar entre login e registro
   useEffect(() => {
     setError(null);
+    setEmailConfirmationNeeded(false);
     form.reset();
   }, [isRegister, form]);
 
   const handleSubmit = async (values: LoginFormValues) => {
     setIsLoading(true);
     setError(null);
+    setEmailConfirmationNeeded(false);
     
     try {
       if (isRegister) {
@@ -68,12 +71,18 @@ const Login = () => {
         
         if (error) throw error;
         
-        // Nesse ponto, o usuário foi criado no auth, e o trigger onAuthStateChange 
-        // no AuthContext vai cuidar de criar o perfil e clínica automaticamente
-        
-        toast.success("Cadastro realizado com sucesso! Faça login para continuar.");
-        setIsRegister(false);
-        form.reset();
+        if (data?.user?.identities?.length === 0) {
+          // Usuário já existe
+          setError('Este e-mail já está cadastrado. Por favor, faça login.');
+          setIsRegister(false);
+        } else if (data?.user && !data.session) {
+          // Email de confirmação foi enviado
+          setEmailConfirmationNeeded(true);
+          toast.success("Cadastro realizado! Verifique seu e-mail para confirmar.");
+        } else {
+          // Usuário criado e logado automaticamente
+          toast.success("Cadastro realizado com sucesso!");
+        }
       } else {
         // Login do usuário
         await signIn(values.email, values.password);
@@ -82,11 +91,13 @@ const Login = () => {
       console.error("Auth error:", error);
       
       // Tratamento de mensagens de erro
-      if (error.code === 'invalid_credentials') {
+      if (error.message?.includes('Invalid login credentials')) {
         setError('E-mail ou senha incorretos');
-      } else if (error.code === 'user_already_exists') {
+      } else if (error.message?.includes('already registered')) {
         setError('Este e-mail já está cadastrado. Faça login.');
         setIsRegister(false);
+      } else if (error.message?.includes('rate limit') || error.message?.includes('40 seconds')) {
+        setError('Muitas tentativas. Por favor, aguarde alguns instantes antes de tentar novamente.');
       } else if (error.message?.includes('password')) {
         setError('A senha deve ter no mínimo 6 caracteres');
       } else {
@@ -123,8 +134,17 @@ const Login = () => {
 
         {error && (
           <Alert className="border-red-300 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
             <AlertDescription className="text-red-600">
               {error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {emailConfirmationNeeded && (
+          <Alert className="border-blue-300 bg-blue-50">
+            <AlertDescription className="text-blue-600">
+              Enviamos um e-mail de confirmação para você. Por favor, verifique seu e-mail para ativar sua conta antes de fazer login.
             </AlertDescription>
           </Alert>
         )}
