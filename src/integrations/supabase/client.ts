@@ -9,4 +9,25 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+console.log('Inicializando cliente Supabase para o projeto:', SUPABASE_URL);
+
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    persistSession: true, 
+    storageKey: 'hubb-assist-auth-storage',
+    autoRefreshToken: true,
+    debug: true // Ativar logs de debug para autenticação
+  }
+});
+
+// Verificar a conexão ao inicializar
+(async () => {
+  const { data, error } = await supabase.from('patients').select('count').limit(1);
+  console.log('Teste de conexão com Supabase:');
+  console.log('- Resultado:', data);
+  if (error) {
+    console.error('- Erro na conexão:', error);
+  } else {
+    console.log('- Conexão bem-sucedida');
+  }
+})();

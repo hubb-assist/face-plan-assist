@@ -23,19 +23,47 @@ const PatientsList = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const { user } = useAuth();
+  const { user, session } = useAuth();
 
   useEffect(() => {
     const fetchPatients = async () => {
-      if (!user) return;
+      if (!user) {
+        console.log('Nenhum usuário autenticado, não é possível buscar pacientes');
+        setLoading(false);
+        return;
+      }
       
       try {
         setLoading(true);
         console.log('Buscando pacientes para o usuário:', user.id);
+        console.log('Estado da sessão:', session ? 'Autenticado' : 'Não autenticado');
         
+        // Primeiro, buscar o perfil do usuário para obter a clinic_id
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('clinic_id')
+          .eq('id', user.id)
+          .maybeSingle();
+          
+        if (profileError) {
+          console.error('Erro ao buscar perfil do usuário:', profileError);
+          throw profileError;
+        }
+        
+        if (!profileData || !profileData.clinic_id) {
+          console.error('Perfil do usuário não encontrado ou sem clinic_id');
+          setPatients([]);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Clinic ID encontrado:', profileData.clinic_id);
+        
+        // Depois, buscar os pacientes da clínica
         const { data, error } = await supabase
           .from('patients')
           .select('*')
+          .eq('clinic_id', profileData.clinic_id)
           .order('created_at', { ascending: false });
           
         if (error) {
@@ -54,7 +82,7 @@ const PatientsList = () => {
     };
     
     fetchPatients();
-  }, [user]);
+  }, [user, session]);
 
   const filteredPatients = patients.filter(patient => 
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

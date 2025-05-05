@@ -1,223 +1,273 @@
 
 import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { 
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage 
-} from '@/components/ui/form';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle } from 'lucide-react';
-
-// Esquema de validação para o formulário
-const loginSchema = z.object({
-  email: z.string().email('E-mail inválido').min(1, 'E-mail é obrigatório'),
-  password: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres')
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Login = () => {
-  const [isRegister, setIsRegister] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [emailConfirmationNeeded, setEmailConfirmationNeeded] = useState(false);
-  const { signIn, isAuthenticated } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>('login');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
-  // Inicializar o formulário com zod resolver
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: '',
-      password: ''
-    }
-  });
-
-  // Limpar erros quando alternar entre login e registro
+  // Verificar autenticação ao carregar a página
   useEffect(() => {
-    setError(null);
-    setEmailConfirmationNeeded(false);
-    form.reset();
-  }, [isRegister, form]);
+    const checkAuth = async () => {
+      console.log('Estado de autenticação atual:', { user, isAuthenticated });
+      
+      // Verificar sessão ativa
+      const { data } = await supabase.auth.getSession();
+      console.log('Sessão ativa:', data.session);
+      
+      if (isAuthenticated) {
+        console.log('Usuário já autenticado, redirecionando para dashboard');
+        navigate('/dashboard');
+      }
+    };
+    
+    checkAuth();
+  }, [isAuthenticated, navigate, user]);
 
-  const handleSubmit = async (values: LoginFormValues) => {
-    setIsLoading(true);
-    setError(null);
-    setEmailConfirmationNeeded(false);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !password) {
+      toast.error('Por favor, preencha todos os campos');
+      return;
+    }
     
     try {
-      if (isRegister) {
-        // Registrar novo usuário
-        const { data, error } = await supabase.auth.signUp({
-          email: values.email,
-          password: values.password,
-          options: {
-            data: {
-              role: 'admin_clinic'
-            }
-          }
-        });
-        
-        if (error) throw error;
-        
-        if (data?.user?.identities?.length === 0) {
-          // Usuário já existe
-          setError('Este e-mail já está cadastrado. Por favor, faça login.');
-          setIsRegister(false);
-        } else if (data?.user && !data.session) {
-          // Email de confirmação foi enviado
-          setEmailConfirmationNeeded(true);
-          toast.success("Cadastro realizado! Verifique seu e-mail para confirmar.");
+      console.log(`Tentando login com email: ${email}`);
+      setLoading(true);
+      
+      // Primeiro, verifique se o usuário existe
+      const { data: userExists, error: checkError } = await supabase.auth.admin.getUserByEmail(email);
+      
+      if (checkError) {
+        console.log('Erro ao verificar usuário existente:', checkError);
+      } else {
+        console.log('Usuário existe?', userExists ? 'Sim' : 'Não');
+      }
+      
+      // Tente fazer login
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) {
+        console.error('Erro de login detalhado:', error);
+        if (error.message.includes('Invalid login credentials')) {
+          toast.error('Email ou senha incorretos. Verifique suas credenciais.');
         } else {
-          // Usuário criado e logado automaticamente
-          toast.success("Cadastro realizado com sucesso!");
+          toast.error(`Erro ao fazer login: ${error.message}`);
         }
-      } else {
-        // Login do usuário
-        await signIn(values.email, values.password);
+        throw error;
       }
+      
+      console.log('Login bem-sucedido:', data);
+      toast.success('Login realizado com sucesso!');
+      navigate('/dashboard');
     } catch (error: any) {
-      console.error("Auth error:", error);
-      
-      // Tratamento de mensagens de erro
-      if (error.message?.includes('Invalid login credentials')) {
-        setError('E-mail ou senha incorretos');
-      } else if (error.message?.includes('already registered')) {
-        setError('Este e-mail já está cadastrado. Faça login.');
-        setIsRegister(false);
-      } else if (error.message?.includes('rate limit') || error.message?.includes('40 seconds')) {
-        setError('Muitas tentativas. Por favor, aguarde alguns instantes antes de tentar novamente.');
-      } else if (error.message?.includes('password')) {
-        setError('A senha deve ter no mínimo 6 caracteres');
-      } else {
-        setError(error.message || "Ocorreu um erro durante a autenticação");
-      }
-      
-      toast.error(error.message || "Ocorreu um erro durante a autenticação");
+      console.error('Erro completo no processo de login:', error);
+      // Toast de erro já exibido no bloco específico acima
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // Redirect if already authenticated
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !password) {
+      toast.error('Por favor, preencha todos os campos');
+      return;
+    }
+    
+    try {
+      console.log(`Tentando registrar com email: ${email}`);
+      setLoading(true);
+      
+      // Verificar se o usuário já existe
+      const { data: userExists, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+        
+      if (userExists) {
+        console.log('Usuário já existe na tabela profiles');
+        toast.error('Este email já está em uso. Tente fazer login.');
+        return;
+      }
+        
+      // Tente registrar o usuário
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            email: email,
+          }
+        }
+      });
+      
+      if (error) {
+        console.error('Erro de registro detalhado:', error);
+        // Informar sobre o erro rate limit com mensagem mais amigável
+        if (error.message.includes('For security purposes, you can only request this after')) {
+          toast.error('Por razões de segurança, aguarde alguns segundos antes de tentar novamente.');
+        } else if (error.message.includes('already registered')) {
+          toast.error('Este email já está registrado. Tente fazer login.');
+        } else {
+          toast.error(`Erro ao fazer registro: ${error.message}`);
+        }
+        throw error;
+      }
+      
+      console.log('Registro bem-sucedido:', data);
+      
+      // Verificar se existe confirmação por email
+      if (data?.user?.identities?.length === 0) {
+        toast.warning('Já existe uma conta com este email. Tente fazer login.');
+        setActiveTab('login');
+        return;
+      }
+      
+      if (data?.user?.identities?.length > 0 && !data.user?.email_confirmed_at) {
+        toast.success('Registro realizado! Verifique seu email para confirmar sua conta.');
+        // Também podemos tentar fazer login direto se não precisar de confirmação
+        const { error: loginError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        
+        if (!loginError) {
+          navigate('/dashboard');
+        } else {
+          console.log('Não foi possível fazer login automático após registro:', loginError);
+          setActiveTab('login');
+        }
+      } else {
+        toast.success('Registro realizado com sucesso!');
+        navigate('/dashboard');
+      }
+    } catch (error: any) {
+      console.error('Erro completo no processo de registro:', error);
+      // Toast de erro já exibido no bloco específico acima
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white shadow-lg rounded-xl">
-        <div className="text-center">
-          <img 
-            src="https://sq360.com.br/logo-hubb-novo/logo_hubb_assisit.png" 
-            alt="Hubb Assist" 
-            className="h-16 mx-auto" 
-          />
-          <h2 className="mt-6 text-2xl font-bold text-hubAssist-primary">
-            {isRegister ? 'Criar Nova Conta' : 'Acesso ao Sistema'}
-          </h2>
-          <p className="mt-2 text-sm text-gray-500">
-            {isRegister ? 'Preencha os dados para se cadastrar' : 'Faça login para acessar o Hubb Assist'}
-          </p>
-        </div>
-
-        {error && (
-          <Alert className="border-red-300 bg-red-50">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-600">
-              {error}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {emailConfirmationNeeded && (
-          <Alert className="border-blue-300 bg-blue-50">
-            <AlertDescription className="text-blue-600">
-              Enviamos um e-mail de confirmação para você. Por favor, verifique seu e-mail para ativar sua conta antes de fazer login.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="mt-8 space-y-6">
-            <div className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="required-field">E-mail</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="email"
-                        placeholder="seu@email.com"
-                        autoComplete="email"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="required-field">Senha</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="password"
-                        placeholder="••••••••"
-                        autoComplete={isRegister ? 'new-password' : 'current-password'}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div>
-              <Button
-                type="submit"
-                className="w-full btn-primary"
-                disabled={isLoading}
-              >
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLoading 
-                  ? (isRegister ? 'Cadastrando...' : 'Entrando...') 
-                  : (isRegister ? 'Cadastrar' : 'Entrar')}
-              </Button>
-            </div>
-            
-            <div className="text-center text-sm">
-              <button 
-                type="button" 
-                className="text-hubAssist-primary hover:underline" 
-                onClick={() => setIsRegister(!isRegister)}
-              >
-                {isRegister 
-                  ? 'Já tem uma conta? Faça login' 
-                  : 'Não tem uma conta? Cadastre-se'}
-              </button>
-            </div>
-          </form>
-        </Form>
-      </div>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-lg border-none">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-2xl font-bold text-center text-hubAssist-primary">
+            HubAssist
+          </CardTitle>
+          <CardDescription className="text-center">
+            Planeje e acompanhe a reabilitação dos seus pacientes
+          </CardDescription>
+        </CardHeader>
+        
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-2 mb-4">
+            <TabsTrigger value="login">Login</TabsTrigger>
+            <TabsTrigger value="register">Registrar</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="login">
+            <form onSubmit={handleLogin}>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="seuemail@exemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Senha</Label>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  className="w-full btn-primary" 
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading ? 'Entrando...' : 'Entrar'}
+                </Button>
+              </CardFooter>
+            </form>
+          </TabsContent>
+          
+          <TabsContent value="register">
+            <form onSubmit={handleSignUp}>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="register-email">Email</Label>
+                  <Input
+                    id="register-email"
+                    type="email"
+                    placeholder="seuemail@exemplo.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-password">Senha</Label>
+                  <Input
+                    id="register-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A senha deve ter pelo menos 6 caracteres
+                  </p>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  className="w-full btn-primary" 
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading ? 'Registrando...' : 'Registrar'}
+                </Button>
+              </CardFooter>
+            </form>
+          </TabsContent>
+        </Tabs>
+      </Card>
     </div>
   );
 };

@@ -28,12 +28,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Check if we have a session when the provider loads
   useEffect(() => {
     const initializeAuth = async () => {
+      console.log('Inicializando autenticação...');
       setLoading(true);
       
       // Set up auth state listener FIRST
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         (event, newSession) => {
           console.log('Auth state changed:', event);
+          console.log('New session:', newSession?.user?.email || 'No user');
+          
           setSession(newSession);
           setUser(newSession?.user ?? null);
           
@@ -41,7 +44,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             toast.success("Login realizado com sucesso");
             // Buscamos o perfil do usuário após login para ter certeza que existe
             setTimeout(() => {
-              fetchUserProfile(newSession?.user?.id);
+              if (newSession?.user?.id) {
+                fetchUserProfile(newSession.user.id);
+              }
             }, 0);
           } else if (event === 'SIGNED_OUT') {
             toast.success("Logout realizado com sucesso");
@@ -51,6 +56,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // THEN check for existing session
       const { data } = await supabase.auth.getSession();
+      console.log('Sessão existente:', data.session?.user?.email || 'Nenhuma sessão');
+      
       setSession(data.session);
       setUser(data.session?.user ?? null);
       
@@ -71,9 +78,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Função para buscar o perfil do usuário
   const fetchUserProfile = async (userId: string | undefined) => {
-    if (!userId) return;
+    if (!userId) {
+      console.log('fetchUserProfile: nenhum userId fornecido');
+      return;
+    }
     
     try {
+      console.log('Buscando perfil do usuário:', userId);
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -85,9 +97,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         // Se o perfil não existir, podemos tentar criá-lo
         if (error.code === 'PGRST116') {
+          console.log('Perfil não encontrado, tentando criar...');
           createUserProfile(userId);
         }
       } else if (!data) {
+        console.log('Perfil não encontrado, criando novo perfil...');
         // Se não há erro mas também não há dados, criamos o perfil
         createUserProfile(userId);
       } else {
@@ -100,27 +114,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   // Função para criar o perfil do usuário se não existir
   const createUserProfile = async (userId: string) => {
-    if (!user) return;
+    if (!user) {
+      console.log('createUserProfile: nenhum usuário autenticado');
+      return;
+    }
     
     try {
       console.log("Criando perfil para o usuário:", userId);
       
-      // Primeiro criamos uma clínica para o usuário
-      const { data: clinicData, error: clinicError } = await supabase
+      // Verificar se já existe uma clínica para este usuário
+      const { data: existingClinic, error: clinicCheckError } = await supabase
         .from('clinics')
-        .insert({
-          name: `Clínica de ${user.email?.split('@')[0] || 'Novo Usuário'}`
-        })
         .select('id')
-        .single();
+        .eq('name', `Clínica de ${user.email?.split('@')[0] || 'Novo Usuário'}`)
+        .maybeSingle();
         
-      if (clinicError) {
-        console.error("Erro ao criar clínica:", clinicError);
-        throw clinicError;
+      if (clinicCheckError) {
+        console.error("Erro ao verificar clínica existente:", clinicCheckError);
       }
       
-      if (clinicData) {
+      let clinicId;
+      
+      if (existingClinic) {
+        console.log("Clínica já existe, usando existente:", existingClinic.id);
+        clinicId = existingClinic.id;
+      } else {
+        // Primeiro criamos uma clínica para o usuário
+        const { data: clinicData, error: clinicError } = await supabase
+          .from('clinics')
+          .insert({
+            name: `Clínica de ${user.email?.split('@')[0] || 'Novo Usuário'}`
+          })
+          .select('id')
+          .single();
+          
+        if (clinicError) {
+          console.error("Erro ao criar clínica:", clinicError);
+          throw clinicError;
+        }
+        
         console.log("Clínica criada com sucesso:", clinicData);
+        clinicId = clinicData.id;
+      }
+      
+      if (clinicId) {
+        // Verificar se o perfil já existe
+        const { data: existingProfile, error: profileCheckError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', userId)
+          .maybeSingle();
+          
+        if (profileCheckError) {
+          console.error("Erro ao verificar perfil existente:", profileCheckError);
+        }
+        
+        if (existingProfile) {
+          console.log("Perfil já existe, não é necessário criar novamente");
+          return;
+        }
         
         // Depois criamos o perfil do usuário com a clínica
         const { error: profileError } = await supabase
@@ -129,7 +181,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             id: userId,
             email: user.email,
             role: 'admin_clinic',
-            clinic_id: clinicData.id
+            clinic_id: clinicId
           });
           
         if (profileError) {
@@ -162,6 +214,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       console.log("Login bem-sucedido:", data.user?.email);
+      
+      // Verificar e garantir que o perfil do usuário existe
+      if (data.user) {
+        setTimeout(() => {
+          fetchUserProfile(data.user?.id);
+        }, 100);
+      }
+      
       navigate('/dashboard');
     } catch (error: any) {
       console.error("Erro completo ao fazer login:", error);
@@ -175,6 +235,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Sign out function
   const signOut = async () => {
     try {
+      console.log("Fazendo logout...");
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
