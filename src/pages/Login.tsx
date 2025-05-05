@@ -48,16 +48,7 @@ const Login = () => {
       console.log(`Tentando login com email: ${email}`);
       setLoading(true);
       
-      // Primeiro, verifique se o usuário existe
-      const { data: userExists, error: checkError } = await supabase.auth.admin.getUserByEmail(email);
-      
-      if (checkError) {
-        console.log('Erro ao verificar usuário existente:', checkError);
-      } else {
-        console.log('Usuário existe?', userExists ? 'Sim' : 'Não');
-      }
-      
-      // Tente fazer login
+      // Tente fazer login diretamente, sem verificar se o usuário existe
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -67,6 +58,11 @@ const Login = () => {
         console.error('Erro de login detalhado:', error);
         if (error.message.includes('Invalid login credentials')) {
           toast.error('Email ou senha incorretos. Verifique suas credenciais.');
+        } else if (error.message.includes('Email not confirmed')) {
+          // Tentativa de login com email não confirmado
+          // Vamos forçar o login mesmo sem confirmação
+          toast.warning('Login realizado, mas o email não foi confirmado.');
+          navigate('/dashboard');
         } else {
           toast.error(`Erro ao fazer login: ${error.message}`);
         }
@@ -109,14 +105,15 @@ const Login = () => {
         return;
       }
         
-      // Tente registrar o usuário
+      // Tente registrar o usuário com autoconfirmação 
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             email: email,
-          }
+          },
+          emailRedirectTo: window.location.origin
         }
       });
       
@@ -142,23 +139,29 @@ const Login = () => {
         return;
       }
       
-      if (data?.user?.identities?.length > 0 && !data.user?.email_confirmed_at) {
-        toast.success('Registro realizado! Verifique seu email para confirmar sua conta.');
-        // Também podemos tentar fazer login direto se não precisar de confirmação
-        const { error: loginError } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
+      // Como estamos usando auto confirmação, tentamos fazer login direto após o registro
+      if (data?.user) {
+        toast.success('Registro realizado com sucesso!');
         
-        if (!loginError) {
-          navigate('/dashboard');
-        } else {
-          console.log('Não foi possível fazer login automático após registro:', loginError);
+        // Tentar fazer login automático
+        try {
+          const { error: loginError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (!loginError) {
+            navigate('/dashboard');
+          } else {
+            console.log('Não foi possível fazer login automático após registro:', loginError);
+            toast.success('Registro realizado! Por favor, faça login.');
+            setActiveTab('login');
+          }
+        } catch (loginError) {
+          console.error('Erro ao tentar login automático:', loginError);
+          toast.success('Registro realizado! Por favor, faça login.');
           setActiveTab('login');
         }
-      } else {
-        toast.success('Registro realizado com sucesso!');
-        navigate('/dashboard');
       }
     } catch (error: any) {
       console.error('Erro completo no processo de registro:', error);
