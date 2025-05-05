@@ -78,7 +78,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       if (error) {
         console.error("Erro ao buscar perfil do usuário:", error);
@@ -87,9 +87,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (error.code === 'PGRST116') {
           createUserProfile(userId);
         }
+      } else if (!data) {
+        // Se não há erro mas também não há dados, criamos o perfil
+        createUserProfile(userId);
+      } else {
+        console.log("Perfil do usuário encontrado:", data);
       }
-      
-      console.log("Perfil do usuário:", data);
     } catch (error) {
       console.error("Erro ao buscar perfil:", error);
     }
@@ -128,6 +131,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Erro ao criar perfil do usuário:", error);
+      toast.error("Erro ao configurar seu perfil. Por favor, tente novamente.");
     }
   };
 

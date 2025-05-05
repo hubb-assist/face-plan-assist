@@ -4,7 +4,6 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
@@ -69,44 +68,12 @@ const Login = () => {
         
         if (error) throw error;
         
-        if (data?.user) {
-          try {
-            // Criar clínica para o novo usuário
-            const { data: clinicData, error: clinicError } = await supabase
-              .from('clinics')
-              .insert({
-                name: `Clínica de ${values.email.split('@')[0]}`
-              })
-              .select('id')
-              .single();
-              
-            if (clinicError) throw clinicError;
-            
-            if (clinicData) {
-              // Criar perfil para o usuário com referência à clínica
-              const { error: profileError } = await supabase
-                .from('profiles')
-                .insert({
-                  id: data.user.id,
-                  email: values.email,
-                  role: 'admin_clinic',
-                  clinic_id: clinicData.id
-                });
-                
-              if (profileError) throw profileError;
-            }
-          } catch (error: any) {
-            console.error("Erro ao criar clínica ou perfil:", error);
-            toast.error("Erro ao criar sua conta. Por favor, tente novamente.");
-            // Deletar usuário se falhou ao criar clínica ou perfil
-            await supabase.auth.admin.deleteUser(data.user.id);
-            throw error;
-          }
-            
-          toast.success("Cadastro realizado com sucesso! Faça login para continuar.");
-          setIsRegister(false);
-          form.reset();
-        }
+        // Nesse ponto, o usuário foi criado no auth, e o trigger onAuthStateChange 
+        // no AuthContext vai cuidar de criar o perfil e clínica automaticamente
+        
+        toast.success("Cadastro realizado com sucesso! Faça login para continuar.");
+        setIsRegister(false);
+        form.reset();
       } else {
         // Login do usuário
         await signIn(values.email, values.password);
@@ -119,6 +86,7 @@ const Login = () => {
         setError('E-mail ou senha incorretos');
       } else if (error.code === 'user_already_exists') {
         setError('Este e-mail já está cadastrado. Faça login.');
+        setIsRegister(false);
       } else if (error.message?.includes('password')) {
         setError('A senha deve ter no mínimo 6 caracteres');
       } else {
