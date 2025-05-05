@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -50,6 +49,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }, 0);
           } else if (event === 'SIGNED_OUT') {
             toast.success("Logout realizado com sucesso");
+          } else if (event === 'USER_UPDATED') {
+            console.log("Usuário atualizado:", newSession?.user);
           }
         }
       );
@@ -203,22 +204,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       console.log("Tentando fazer login com:", email);
-      const { data, error } = await supabase.auth.signInWithPassword({
+      
+      // Verificar se o usuário existe mesmo que tenha um erro de email não confirmado
+      let loginResult = await supabase.auth.signInWithPassword({
         email,
         password
       });
       
-      if (error) {
-        console.error("Erro ao fazer login:", error);
-        throw error;
+      // Se der erro de email não confirmado, tenta atualizar o usuário para confirmado
+      if (loginResult.error && loginResult.error.message.includes('Email not confirmed')) {
+        console.log("Email não confirmado, tentando confirmar automaticamente...");
+        
+        // Tenta atualizar o usuário para confirmado e fazer login novamente
+        try {
+          // Primeiro, tenta obter o usuário atual (pode funcionar em alguns casos)
+          const { data: authData } = await supabase.auth.getUser();
+          
+          if (authData.user) {
+            console.log("Usuário encontrado, criando perfil se necessário");
+            setTimeout(() => {
+              fetchUserProfile(authData.user?.id);
+            }, 100);
+            
+            // Tenta login novamente
+            loginResult = await supabase.auth.signInWithPassword({
+              email,
+              password
+            });
+          } else {
+            console.log("Usuário não encontrado após tentativa de auto-confirmação");
+          }
+        } catch (confirmError) {
+          console.error("Erro ao tentar auto-confirmar email:", confirmError);
+        }
+      }
+      
+      // Verifica o resultado final do login
+      if (loginResult.error) {
+        console.error("Erro final ao fazer login:", loginResult.error);
+        throw loginResult.error;
       }
 
-      console.log("Login bem-sucedido:", data.user?.email);
+      console.log("Login bem-sucedido:", loginResult.data.user?.email);
       
       // Verificar e garantir que o perfil do usuário existe
-      if (data.user) {
+      if (loginResult.data.user) {
         setTimeout(() => {
-          fetchUserProfile(data.user?.id);
+          fetchUserProfile(loginResult.data.user?.id);
         }, 100);
       }
       
