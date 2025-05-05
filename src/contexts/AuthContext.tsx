@@ -2,17 +2,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 
 // Types for our auth context
-interface User {
-  id: string;
-  email: string;
-  clinic_id: string;
-  role: 'admin_clinic' | 'profissional_clinic';
-}
-
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -25,35 +21,42 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Provider component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
 
-  // Mock user for demo purposes (will be replaced with Supabase)
-  const mockUser: User = {
-    id: 'mock-user-id',
-    email: 'demo@hubbassist.com',
-    clinic_id: 'mock-clinic-id',
-    role: 'admin_clinic'
-  };
-
   // Check if we have a session when the provider loads
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        // Mock session check (will be replaced with Supabase session)
-        const hasSession = localStorage.getItem('hubb_assist_session');
-        
-        if (hasSession) {
-          setUser(mockUser);
+    const initializeAuth = async () => {
+      setLoading(true);
+      
+      // Set up auth state listener FIRST
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (event, newSession) => {
+          console.log('Auth state changed:', event);
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
+          
+          if (event === 'SIGNED_IN') {
+            toast.success("Login realizado com sucesso");
+          } else if (event === 'SIGNED_OUT') {
+            toast.success("Logout realizado com sucesso");
+          }
         }
-      } catch (error) {
-        console.error("Session check error:", error);
-      } finally {
-        setLoading(false);
-      }
+      );
+      
+      // THEN check for existing session
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+      setUser(data.session?.user ?? null);
+      setLoading(false);
+      
+      return () => {
+        subscription.unsubscribe();
+      };
     };
 
-    checkSession();
+    initializeAuth();
   }, []);
 
   // Sign in function
@@ -61,18 +64,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      // Mock sign in (will be replaced with Supabase auth)
-      if (email && password) {
-        // Store mock session
-        localStorage.setItem('hubb_assist_session', 'mock-session-token');
-        setUser(mockUser);
-        toast.success("Login realizado com sucesso");
-        navigate('/dashboard');
-      } else {
-        throw new Error("E-mail e senha são obrigatórios");
-      }
-    } catch (error) {
-      toast.error("Erro ao fazer login: " + (error instanceof Error ? error.message : "Credenciais inválidas"));
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) throw error;
+      
+      navigate('/dashboard');
+    } catch (error: any) {
+      toast.error("Erro ao fazer login: " + error.message);
       throw error;
     } finally {
       setLoading(false);
@@ -82,13 +83,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Sign out function
   const signOut = async () => {
     try {
-      // Mock sign out (will be replaced with Supabase auth)
-      localStorage.removeItem('hubb_assist_session');
-      setUser(null);
-      toast.success("Logout realizado com sucesso");
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
       navigate('/login');
-    } catch (error) {
-      toast.error("Erro ao fazer logout");
+    } catch (error: any) {
+      toast.error("Erro ao fazer logout: " + error.message);
       console.error("Sign out error:", error);
     }
   };
@@ -96,10 +96,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={{ 
       user, 
+      session,
       loading, 
       signIn, 
       signOut,
-      isAuthenticated: !!user 
+      isAuthenticated: !!session 
     }}>
       {children}
     </AuthContext.Provider>

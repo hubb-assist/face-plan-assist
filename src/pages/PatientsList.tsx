@@ -27,8 +27,11 @@ const PatientsList = () => {
 
   useEffect(() => {
     const fetchPatients = async () => {
+      if (!user) return;
+      
       try {
         setLoading(true);
+        console.log('Buscando pacientes para o usuário:', user.id);
         
         const { data, error } = await supabase
           .from('patients')
@@ -36,9 +39,11 @@ const PatientsList = () => {
           .order('created_at', { ascending: false });
           
         if (error) {
+          console.error('Erro ao buscar pacientes:', error);
           throw error;
         }
         
+        console.log('Pacientes encontrados:', data?.length || 0);
         setPatients(data || []);
       } catch (error: any) {
         console.error('Erro ao buscar pacientes:', error);
