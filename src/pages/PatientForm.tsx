@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 const PatientForm = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [clinicId, setClinicId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -31,6 +32,35 @@ const PatientForm = () => {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Buscar o clinic_id do usuário ao carregar o componente
+  useEffect(() => {
+    const fetchUserClinicId = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('clinic_id')
+          .eq('id', user.id)
+          .single();
+          
+        if (error) {
+          console.error('Erro ao buscar clinic_id do usuário:', error);
+          return;
+        }
+        
+        if (data?.clinic_id) {
+          console.log('clinic_id recuperado:', data.clinic_id);
+          setClinicId(data.clinic_id);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar clinic_id:', error);
+      }
+    };
+    
+    fetchUserClinicId();
+  }, [user]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -100,6 +130,12 @@ const PatientForm = () => {
       return;
     }
     
+    if (!clinicId) {
+      toast.error("Não foi possível identificar a clínica. Por favor, tente novamente ou contate o suporte.");
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       // Upload image if provided
       let imageUrl = null;
@@ -123,7 +159,7 @@ const PatientForm = () => {
           gender: formData.gender,
           cpf: formData.cpf,
           image_url: imageUrl,
-          clinic_id: user?.clinic_id,
+          clinic_id: clinicId, // Usar o clinic_id recuperado do perfil
           user_id: user?.id
         })
         .select();
