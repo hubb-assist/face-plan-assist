@@ -39,6 +39,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           
           if (event === 'SIGNED_IN') {
             toast.success("Login realizado com sucesso");
+            // Buscamos o perfil do usuário após login para ter certeza que existe
+            setTimeout(() => {
+              fetchUserProfile(newSession?.user?.id);
+            }, 0);
           } else if (event === 'SIGNED_OUT') {
             toast.success("Logout realizado com sucesso");
           }
@@ -49,6 +53,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { data } = await supabase.auth.getSession();
       setSession(data.session);
       setUser(data.session?.user ?? null);
+      
+      if (data.session?.user) {
+        // Buscamos o perfil do usuário se já estiver autenticado
+        fetchUserProfile(data.session.user.id);
+      }
+      
       setLoading(false);
       
       return () => {
@@ -58,6 +68,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initializeAuth();
   }, []);
+
+  // Função para buscar o perfil do usuário
+  const fetchUserProfile = async (userId: string | undefined) => {
+    if (!userId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error("Erro ao buscar perfil do usuário:", error);
+        
+        // Se o perfil não existir, podemos tentar criá-lo
+        if (error.code === 'PGRST116') {
+          createUserProfile(userId);
+        }
+      }
+      
+      console.log("Perfil do usuário:", data);
+    } catch (error) {
+      console.error("Erro ao buscar perfil:", error);
+    }
+  };
+  
+  // Função para criar o perfil do usuário se não existir
+  const createUserProfile = async (userId: string) => {
+    if (!user) return;
+    
+    try {
+      // Primeiro criamos uma clínica para o usuário
+      const { data: clinicData, error: clinicError } = await supabase
+        .from('clinics')
+        .insert({
+          name: `Clínica de ${user.email?.split('@')[0] || 'Novo Usuário'}`
+        })
+        .select('id')
+        .single();
+        
+      if (clinicError) throw clinicError;
+      
+      if (clinicData) {
+        // Depois criamos o perfil do usuário com a clínica
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: user.email,
+            role: 'admin_clinic',
+            clinic_id: clinicData.id
+          });
+          
+        if (profileError) throw profileError;
+        
+        console.log("Perfil do usuário criado com sucesso");
+      }
+    } catch (error) {
+      console.error("Erro ao criar perfil do usuário:", error);
+    }
+  };
 
   // Sign in function
   const signIn = async (email: string, password: string) => {
