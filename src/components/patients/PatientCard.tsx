@@ -25,7 +25,7 @@ const PatientCard = ({ patient }: PatientCardProps) => {
   
   return (
     <Card className="overflow-hidden patient-card">
-      <div className="patient-img-container">
+      <div className="patient-img-container h-[180px] bg-gray-100">
         {patient.imageUrl ? (
           <img 
             src={patient.imageUrl} 

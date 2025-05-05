@@ -1,16 +1,55 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Plus, Search, Users } from 'lucide-react';
 import PatientCard from '@/components/patients/PatientCard';
-import { useMockPatients } from '@/hooks/useMockPatients';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+
+interface Patient {
+  id: string;
+  name: string;
+  birth_date: string;
+  cpf: string;
+  image_url?: string;
+  created_at: string;
+}
 
 const PatientsList = () => {
-  const { patients, loading } = useMockPatients();
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setLoading(true);
+        
+        const { data, error } = await supabase
+          .from('patients')
+          .select('*')
+          .order('created_at', { ascending: false });
+          
+        if (error) {
+          throw error;
+        }
+        
+        setPatients(data || []);
+      } catch (error: any) {
+        console.error('Erro ao buscar pacientes:', error);
+        toast.error(`Erro ao carregar pacientes: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchPatients();
+  }, [user]);
 
   const filteredPatients = patients.filter(patient => 
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -48,7 +87,17 @@ const PatientsList = () => {
       ) : filteredPatients.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredPatients.map((patient) => (
-            <PatientCard key={patient.id} patient={patient} />
+            <PatientCard 
+              key={patient.id} 
+              patient={{
+                id: patient.id,
+                name: patient.name,
+                birthDate: new Date(patient.birth_date),
+                cpf: patient.cpf,
+                imageUrl: patient.image_url,
+                createdAt: new Date(patient.created_at)
+              }} 
+            />
           ))}
         </div>
       ) : (

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Calendar as CalendarIcon, Upload } from 'lucide-react';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -15,6 +15,8 @@ import { pt } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import ImageUpload from '@/components/patients/ImageUpload';
+import { supabase } from '@/integrations/supabase/client';
+import { v4 as uuidv4 } from 'uuid';
 
 const PatientForm = () => {
   const navigate = useNavigate();
@@ -56,6 +58,31 @@ const PatientForm = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  const uploadImage = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${uuidv4()}.${fileExt}`;
+      const filePath = `${user?.id}/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('patient_images')
+        .upload(filePath, file);
+        
+      if (uploadError) {
+        throw uploadError;
+      }
+      
+      const { data } = supabase.storage
+        .from('patient_images')
+        .getPublicUrl(filePath);
+        
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -68,22 +95,40 @@ const PatientForm = () => {
     }
     
     try {
-      // Mock API call - will be replaced with Supabase
-      console.log("Saving patient:", {
-        ...formData,
-        clinic_id: user?.clinic_id,
-        user_id: user?.id,
-        image: image ? 'Has image' : 'No image'
-      });
+      // Upload image if provided
+      let imageUrl = null;
+      if (image) {
+        imageUrl = await uploadImage(image);
+        if (!imageUrl) {
+          toast.error("Erro ao fazer upload da imagem");
+          setIsLoading(false);
+          return;
+        }
+      }
       
-      // Simulate API delay
-      await new Promise(r => setTimeout(r, 1000));
+      // Save patient data to Supabase
+      const { data, error } = await supabase
+        .from('patients')
+        .insert({
+          name: formData.name,
+          birth_date: formData.birthDate?.toISOString().split('T')[0],
+          gender: formData.gender,
+          cpf: formData.cpf,
+          image_url: imageUrl,
+          clinic_id: user?.clinic_id,
+          user_id: user?.id
+        })
+        .select();
+      
+      if (error) {
+        throw error;
+      }
       
       toast.success("Paciente cadastrado com sucesso!");
       navigate("/pacientes");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving patient:", error);
-      toast.error("Erro ao cadastrar paciente");
+      toast.error(`Erro ao cadastrar paciente: ${error.message || 'Verifique se todos os campos estão preenchidos corretamente'}`);
     } finally {
       setIsLoading(false);
     }

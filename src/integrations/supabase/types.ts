@@ -9,7 +9,100 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      clinics: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      patients: {
+        Row: {
+          birth_date: string
+          clinic_id: string
+          cpf: string
+          created_at: string
+          gender: string
+          id: string
+          image_url: string | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          birth_date: string
+          clinic_id: string
+          cpf: string
+          created_at?: string
+          gender: string
+          id?: string
+          image_url?: string | null
+          name: string
+          user_id: string
+        }
+        Update: {
+          birth_date?: string
+          clinic_id?: string
+          cpf?: string
+          created_at?: string
+          gender?: string
+          id?: string
+          image_url?: string | null
+          name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patients_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          email: string
+          id: string
+          role: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          email: string
+          id: string
+          role: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
