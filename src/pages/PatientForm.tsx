@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import ImageUpload from '@/components/patients/ImageUpload';
 import { supabase } from '@/integrations/supabase/client';
-import { v4 as uuidv4 } from 'uuid';
 
 const PatientForm = () => {
   const navigate = useNavigate();
@@ -61,24 +60,31 @@ const PatientForm = () => {
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${uuidv4()}.${fileExt}`;
-      const filePath = `${user?.id}/${fileName}`;
+      // Gerando um nome de arquivo único usando timestamp e random
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${user?.id || 'public'}/${fileName}`;
       
-      const { error: uploadError } = await supabase.storage
+      console.log('Iniciando upload da imagem:', filePath);
+      
+      const { error: uploadError, data } = await supabase.storage
         .from('patient_images')
         .upload(filePath, file);
         
       if (uploadError) {
+        console.error('Erro durante upload:', uploadError);
         throw uploadError;
       }
       
-      const { data } = supabase.storage
+      console.log('Upload concluído com sucesso:', data);
+      
+      const { data: urlData } = supabase.storage
         .from('patient_images')
         .getPublicUrl(filePath);
         
-      return data.publicUrl;
+      console.log('URL pública gerada:', urlData.publicUrl);
+      return urlData.publicUrl;
     } catch (error) {
-      console.error('Error uploading image:', error);
+      console.error('Erro ao fazer upload da imagem:', error);
       return null;
     }
   };
@@ -100,11 +106,13 @@ const PatientForm = () => {
       if (image) {
         imageUrl = await uploadImage(image);
         if (!imageUrl) {
-          toast.error("Erro ao fazer upload da imagem");
+          toast.error("Erro ao fazer upload da imagem. Tente novamente.");
           setIsLoading(false);
           return;
         }
       }
+      
+      console.log('Salvando paciente com imagem URL:', imageUrl);
       
       // Save patient data to Supabase
       const { data, error } = await supabase
@@ -121,6 +129,7 @@ const PatientForm = () => {
         .select();
       
       if (error) {
+        console.error('Erro ao inserir paciente:', error);
         throw error;
       }
       
