@@ -117,7 +117,7 @@ const PatientForm = () => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Validate form data
+    // Validação dos campos
     if (!formData.name || !formData.birthDate || !formData.gender || !formData.cpf) {
       toast.error("Por favor, preencha todos os campos obrigatórios");
       setIsLoading(false);
@@ -149,7 +149,7 @@ const PatientForm = () => {
     }
     
     try {
-      // Upload image if provided
+      // Upload da imagem se fornecida
       let imageUrl = null;
       if (image) {
         imageUrl = await uploadImage(image);
@@ -163,7 +163,7 @@ const PatientForm = () => {
       console.log('Salvando paciente com clínica ID:', clinicId);
       console.log('Salvando paciente com imagem URL:', imageUrl);
       
-      // Save patient data to Supabase
+      // Salvar dados do paciente no Supabase
       const { data, error } = await supabase
         .from('patients')
         .insert([{
