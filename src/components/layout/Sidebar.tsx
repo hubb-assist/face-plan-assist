@@ -40,7 +40,7 @@ const Sidebar = () => {
       onMouseLeave={() => setExpanded(false)}
     >
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center">
           {expanded ? (
             <img 
               src="https://sq360.com.br/logo-hubb-novo/logo_hubb_assisit.png" 
@@ -48,11 +48,13 @@ const Sidebar = () => {
               className="h-10 w-auto" 
             />
           ) : (
-            <img 
-              src="https://sq360.com.br/logo-hubb-novo/logo_hubb_assisit_favicon.png" 
-              alt="Hubb Assist" 
-              className="h-8 w-auto" 
-            />
+            <div className="w-8 h-8 flex items-center justify-center">
+              <img 
+                src="https://sq360.com.br/logo-hubb-novo/logo_hubb_assisit_favicon.png" 
+                alt="Hubb Assist" 
+                className="max-h-8 max-w-8 object-contain" 
+              />
+            </div>
           )}
         </div>
         <button onClick={toggleSidebar} className="text-white hover:text-sidebar-primary">
