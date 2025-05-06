@@ -1,9 +1,10 @@
 
 import React from 'react';
-import FileUploader, { FileItem } from '../FileUploader';
+import FileUploader from '../FileUploader';
 import { Button } from '@/components/ui/button';
 import { FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import type { FileItem } from '../FileUploader';
 
 interface DocsTabProps {
   patientId: string;
