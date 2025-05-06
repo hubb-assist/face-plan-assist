@@ -67,17 +67,20 @@ const PhotoUploader = ({ patientId, view, label }: PhotoUploaderProps) => {
 
       // Upload da imagem
       const filePath = `${patientId}/${view}.jpg`;
+      
+      // Definir função para acompanhar o progresso separadamente
+      const progressHandler = (progress: { loaded: number; total?: number }) => {
+        if (progress.total) {
+          const pct = Math.round((progress.loaded / progress.total) * 100);
+          setProgress(pct);
+        }
+      };
+      
       const { error: uploadError } = await supabase.storage
         .from('clinical_photos')
         .upload(filePath, file, {
           upsert: true,
-          contentType: 'image/jpeg',
-          onUploadProgress: (evt) => {
-            if (evt?.total) {
-              const pct = Math.round((evt.loaded / evt.total) * 100);
-              setProgress(pct);
-            }
-          }
+          contentType: 'image/jpeg'
         });
 
       if (uploadError) {

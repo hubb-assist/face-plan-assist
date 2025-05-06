@@ -20,6 +20,14 @@ interface AnamnesisTabProps {
   patientId: string;
 }
 
+interface AnamneseDataType {
+  queixa_principal?: string;
+  alergias?: string;
+  doencas_sistemicas?: string;
+  medicacoes?: string;
+  observacoes?: string;
+}
+
 const AnamnesisTab = ({ patientId }: AnamnesisTabProps) => {
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -53,12 +61,14 @@ const AnamnesisTab = ({ patientId }: AnamnesisTabProps) => {
 
       if (data) {
         // Preencher o formulário com os dados da anamnese
+        const anamneseData = data.data as AnamneseDataType;
+        
         form.reset({
-          queixa_principal: data.data.queixa_principal || '',
-          alergias: data.data.alergias || '',
-          doencas_sistemicas: data.data.doencas_sistemicas || '',
-          medicacoes: data.data.medicacoes || '',
-          observacoes: data.data.observacoes || ''
+          queixa_principal: anamneseData.queixa_principal || '',
+          alergias: anamneseData.alergias || '',
+          doencas_sistemicas: anamneseData.doencas_sistemicas || '',
+          medicacoes: anamneseData.medicacoes || '',
+          observacoes: anamneseData.observacoes || ''
         });
       }
     } catch (error: any) {
@@ -87,7 +97,7 @@ const AnamnesisTab = ({ patientId }: AnamnesisTabProps) => {
         const { error: updateError } = await supabase
           .from('anamneses')
           .update({
-            data: formData,
+            data: formData as any,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingData.id);
@@ -99,7 +109,7 @@ const AnamnesisTab = ({ patientId }: AnamnesisTabProps) => {
           .from('anamneses')
           .insert({
             patient_id: patientId,
-            data: formData
+            data: formData as any
           });
 
         if (insertError) throw insertError;
