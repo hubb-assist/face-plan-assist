@@ -21,7 +21,7 @@ import { useProfile } from '@/hooks/useProfile';
 const PatientForm = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { clinicId, loading: profileLoading } = useProfile(user?.id);
+  const { clinicId, loading: profileLoading, fetchUserProfile } = useProfile(user?.id);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -33,6 +33,53 @@ const PatientForm = () => {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  
+  // Efeito adicional para garantir que o clinicId esteja disponível
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (user?.id && !clinicId) {
+        setIsLoadingProfile(true);
+        try {
+          await fetchUserProfile(user.id);
+        } catch (error) {
+          console.error("Erro ao carregar dados do perfil:", error);
+          toast.error("Não foi possível carregar seus dados. Tente novamente.");
+        } finally {
+          setIsLoadingProfile(false);
+        }
+      } else {
+        setIsLoadingProfile(false);
+      }
+    };
+    
+    loadProfileData();
+  }, [user, clinicId, fetchUserProfile]);
+  
+  // Efeito para criar bucket de imagens se não existir
+  useEffect(() => {
+    const createBucketIfNotExists = async () => {
+      try {
+        // Verificar se o bucket existe
+        const { data: buckets } = await supabase.storage.listBuckets();
+        const bucketExists = buckets?.some(bucket => bucket.name === 'patient_images');
+        
+        if (!bucketExists) {
+          console.log('Criando bucket para imagens de pacientes');
+          await supabase.storage.createBucket('patient_images', {
+            public: true,
+            fileSizeLimit: 5 * 1024 * 1024 // 5MB
+          });
+          console.log('Bucket criado com sucesso');
+        }
+      } catch (error) {
+        console.error('Erro ao verificar/criar bucket:', error);
+        // Não interrompe o fluxo se falhar
+      }
+    };
+    
+    createBucketIfNotExists();
+  }, []);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -104,9 +151,26 @@ const PatientForm = () => {
     
     if (!clinicId) {
       console.error("Não foi possível identificar a clínica. clinicId:", clinicId);
-      toast.error("Não foi possível identificar a clínica. Por favor, tente novamente ou contate o suporte.");
-      setIsLoading(false);
-      return;
+      // Tentar recuperar novamente
+      try {
+        if (user?.id) {
+          const profile = await fetchUserProfile(user.id);
+          if (!profile?.clinic_id) {
+            toast.error("Não foi possível identificar a clínica. Por favor, faça logout e login novamente.");
+            setIsLoading(false);
+            return;
+          }
+        } else {
+          toast.error("Usuário não identificado. Por favor, faça logout e login novamente.");
+          setIsLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.error("Erro ao tentar recuperar o perfil:", error);
+        toast.error("Não foi possível identificar a clínica. Por favor, faça logout e login novamente.");
+        setIsLoading(false);
+        return;
+      }
     }
     
     try {
@@ -167,9 +231,24 @@ const PatientForm = () => {
     }
   };
 
+  const isFormDisabled = isLoading || profileLoading || isLoadingProfile || !clinicId;
+
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold text-hubAssist-primary">Cadastrar Novo Paciente</h2>
+      
+      {(profileLoading || isLoadingProfile) && (
+        <div className="p-4 bg-blue-50 rounded-md">
+          <p className="text-blue-700">Carregando dados do seu perfil...</p>
+        </div>
+      )}
+      
+      {!clinicId && !profileLoading && !isLoadingProfile && (
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+          <p className="text-yellow-700 font-medium">Atenção: Não foi possível identificar sua clínica.</p>
+          <p className="text-yellow-600">Por favor, tente fazer logout e login novamente. Se o problema persistir, entre em contato com o suporte.</p>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -186,6 +265,7 @@ const PatientForm = () => {
                       onChange={handleInputChange}
                       placeholder="Nome do paciente"
                       required
+                      disabled={isFormDisabled}
                     />
                   </div>
 
@@ -200,6 +280,7 @@ const PatientForm = () => {
                               "w-full justify-start text-left font-normal",
                               !formData.birthDate && "text-muted-foreground"
                             )}
+                            disabled={isFormDisabled}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {formData.birthDate ? (
@@ -216,6 +297,7 @@ const PatientForm = () => {
                             onSelect={(date) => setFormData({ ...formData, birthDate: date || undefined })}
                             initialFocus
                             locale={pt}
+                            disabled={isFormDisabled}
                           />
                         </PopoverContent>
                       </Popover>
@@ -226,6 +308,7 @@ const PatientForm = () => {
                       <Select 
                         onValueChange={(value) => setFormData({ ...formData, gender: value })}
                         value={formData.gender}
+                        disabled={isFormDisabled}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
@@ -249,6 +332,7 @@ const PatientForm = () => {
                       placeholder="000.000.000-00"
                       maxLength={14}
                       required
+                      disabled={isFormDisabled}
                     />
                   </div>
                 </div>
@@ -263,6 +347,7 @@ const PatientForm = () => {
                 <ImageUpload 
                   imagePreview={imagePreview}
                   onImageChange={handleImageChange}
+                  disabled={isFormDisabled}
                 />
                 <p className="text-xs text-muted-foreground mt-2">
                   Formatos aceitos: JPG, PNG. Tamanho máximo: 5MB
@@ -277,16 +362,20 @@ const PatientForm = () => {
             type="button" 
             variant="outline" 
             onClick={() => navigate('/pacientes')}
-            disabled={isLoading || profileLoading}
+            disabled={isLoading}
           >
             Cancelar
           </Button>
           <Button 
             type="submit" 
             className="btn-primary"
-            disabled={isLoading || profileLoading || !clinicId}
+            disabled={isFormDisabled}
           >
-            {isLoading ? 'Salvando...' : (profileLoading ? 'Carregando perfil...' : 'Salvar Paciente')}
+            {isLoading 
+              ? 'Salvando...' 
+              : (profileLoading || isLoadingProfile 
+                ? 'Carregando perfil...' 
+                : (!clinicId ? 'Clínica não identificada' : 'Salvar Paciente'))}
           </Button>
         </div>
       </form>

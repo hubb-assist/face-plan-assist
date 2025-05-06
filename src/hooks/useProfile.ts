@@ -11,36 +11,61 @@ export const useProfile = (userId: string | undefined) => {
   const fetchUserProfile = async (userId: string | undefined) => {
     if (!userId) {
       console.log('fetchUserProfile: nenhum userId fornecido');
-      return;
+      return null;
     }
     
     try {
       console.log('Buscando perfil do usuário:', userId);
       setLoading(true);
       
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      // Buscando diretamente com a função SQL de Supabase para obter clinic_id
+      const { data: clinic, error: clinicError } = await supabase
+        .rpc('get_user_clinic_id');
       
-      if (error) {
-        console.error("Erro ao buscar perfil do usuário:", error);
+      if (clinicError) {
+        console.error("Erro ao buscar clinic_id do usuário:", clinicError);
+        throw clinicError;
+      }
+      
+      if (clinic) {
+        console.log("ID da clínica encontrado:", clinic);
+        setClinicId(clinic);
         
-        // Se o perfil não existir, podemos tentar criá-lo
-        if (error.code === 'PGRST116') {
-          console.log('Perfil não encontrado, tentando criar...');
+        // Agora busca o perfil completo
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        if (error) {
+          console.error("Erro ao buscar perfil do usuário:", error);
+          throw error;
+        }
+        
+        console.log("Perfil do usuário completo:", data);
+        return data;
+      } else {
+        console.log("ID da clínica não encontrado para o usuário:", userId);
+        
+        // Verificar se o perfil existe
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        if (error && error.code === 'PGRST116') {
+          // Perfil não encontrado, criar um novo
+          return await createUserProfile(userId);
+        } else if (data) {
+          // Perfil encontrado, mas sem clinic_id?
+          setClinicId(data.clinic_id);
+          return data;
+        } else {
+          // Criar perfil
           return await createUserProfile(userId);
         }
-        throw error;
-      } else if (!data) {
-        console.log('Perfil não encontrado, criando novo perfil...');
-        // Se não há erro mas também não há dados, criamos o perfil
-        return await createUserProfile(userId);
-      } else {
-        console.log("Perfil do usuário encontrado:", data);
-        setClinicId(data.clinic_id);
-        return data;
       }
     } catch (error) {
       console.error("Erro ao buscar perfil:", error);
@@ -116,22 +141,23 @@ export const useProfile = (userId: string | undefined) => {
         }
         
         if (existingProfile) {
-          console.log("Perfil já existe, não é necessário criar novamente");
+          console.log("Perfil já existe, atualizando clinic_id");
           
-          // Retornar o perfil existente
-          const { data: profile, error: getProfileError } = await supabase
+          // Atualizar o perfil com o clinic_id correto
+          const { data: updatedProfile, error: updateError } = await supabase
             .from('profiles')
-            .select('*')
+            .update({ clinic_id: clinicId })
             .eq('id', userId)
+            .select('*')
             .single();
             
-          if (getProfileError) {
-            console.error("Erro ao buscar perfil existente:", getProfileError);
-            throw getProfileError;
+          if (updateError) {
+            console.error("Erro ao atualizar perfil:", updateError);
+            throw updateError;
           }
           
-          setClinicId(profile.clinic_id);
-          return profile;
+          setClinicId(clinicId);
+          return updatedProfile;
         }
         
         // Criar o perfil do usuário com a clínica
