@@ -7,11 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Calendar as CalendarIcon } from 'lucide-react';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
+import DatePicker from 'react-datepicker';
+import { ptBR } from 'date-fns/locale';
+import { subYears } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import ImageUpload from '@/components/patients/ImageUpload';
@@ -23,7 +21,7 @@ const PatientForm = () => {
   
   const [formData, setFormData] = useState({
     name: '',
-    birthDate: undefined as Date | undefined,
+    birthDate: null as Date | null,
     gender: '',
     cpf: '',
   });
@@ -55,6 +53,10 @@ const PatientForm = () => {
     }
     
     setFormData({ ...formData, [name]: value });
+  };
+
+  const handleBirthDateChange = (date: Date | null) => {
+    setFormData({ ...formData, birthDate: date });
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -184,35 +186,21 @@ const PatientForm = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="form-input-group">
                       <Label htmlFor="birthDate" className="required-field">Data de nascimento</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !formData.birthDate && "text-muted-foreground"
-                            )}
-                            disabled={isFormDisabled}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {formData.birthDate ? (
-                              format(formData.birthDate, "dd/MM/yyyy", { locale: pt })
-                            ) : (
-                              <span>Selecione uma data</span>
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={formData.birthDate}
-                            onSelect={(date) => setFormData({ ...formData, birthDate: date || undefined })}
-                            initialFocus
-                            locale={pt}
-                            disabled={isFormDisabled}
-                          />
-                        </PopoverContent>
-                      </Popover>
+                      <DatePicker
+                        selected={formData.birthDate}
+                        onChange={handleBirthDateChange}
+                        locale={ptBR}
+                        dateFormat="dd/MM/yyyy"
+                        maxDate={new Date()}
+                        showYearDropdown
+                        scrollableYearDropdown
+                        yearDropdownItemNumber={120}
+                        placeholderText="Selecione a data"
+                        className={cn(
+                          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                        )}
+                        disabled={isFormDisabled}
+                      />
                     </div>
 
                     <div className="form-input-group">
