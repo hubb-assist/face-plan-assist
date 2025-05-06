@@ -1,303 +1,462 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useState, useEffect, forwardRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Input } from '@/components/ui/input';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import ImageUpload from '@/components/patients/ImageUpload';
+import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { Spinner } from '@/components/ui/spinner';
-import { Download, Trash, Upload } from 'lucide-react';
-import { format } from 'date-fns';
 
-export interface FileItem {
-  name: string;
-  size: number;
-  created_at: string;
-  path: string;
+interface PatientFormProps {
+  patient?: any;
+  onSuccess?: () => void;
 }
 
-interface FileUploaderProps {
-  patientId: string;
-  bucket: 'xray_images' | 'documents';
-  fileTypes: string[];
-  title: string;
-  allowMultiple?: boolean;
-}
-
-const FileUploader = ({ 
-  patientId, 
-  bucket, 
-  fileTypes, 
-  title,
-  allowMultiple = false
-}: FileUploaderProps) => {
-  const [files, setFiles] = useState<FileItem[]>([]);
+const PatientForm = ({ patient, onSuccess }: PatientFormProps) => {
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(patient?.image_url || null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  
+  const { user } = useAuth();
+  const { clinicId } = useProfile(user?.id);
+  const navigate = useNavigate();
 
+  // Schema de validação
+  const formSchema = z.object({
+    name: z.string().min(3, { message: 'Nome deve ter pelo menos 3 caracteres' }),
+    cpf: z.string().min(11, { message: 'CPF deve ter 11 dígitos' }),
+    gender: z.string().min(1, { message: 'Selecione o gênero' }),
+    birth_date: z.string().min(1, { message: 'Informe a data de nascimento' }),
+    cep: z.string().optional(),
+    street: z.string().optional(),
+    number: z.string().optional(),
+    district: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+  });
+
+  // Inicializando formulário com valores padrão
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: patient?.name || '',
+      cpf: patient?.cpf || '',
+      gender: patient?.gender || '',
+      birth_date: patient?.birth_date ? patient.birth_date.split('T')[0] : '',
+      cep: patient?.cep || '',
+      street: patient?.street || '',
+      number: patient?.number || '',
+      district: patient?.district || '',
+      city: patient?.city || '',
+      state: patient?.state || '',
+    },
+  });
+
+  // Se o formulário está sendo usado para edição e temos um paciente
   useEffect(() => {
-    fetchFiles();
-  }, [patientId, bucket]);
-
-  const fetchFiles = async () => {
-    try {
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .list(patientId, {
-          sortBy: { column: 'created_at', order: 'desc' }
-        });
-
-      if (error) throw error;
-
-      if (data) {
-        const fileItems: FileItem[] = data
-          .filter(item => !item.id.endsWith('/')) // Filtrar pastas
-          .map(item => ({
-            name: item.name,
-            size: item.metadata?.size || 0,
-            created_at: item.created_at || new Date().toISOString(),
-            path: `${patientId}/${item.name}`
-          }));
-        
-        setFiles(fileItems);
+    if (patient) {
+      form.reset({
+        name: patient.name || '',
+        cpf: patient.cpf || '',
+        gender: patient.gender || '',
+        birth_date: patient.birth_date ? patient.birth_date.split('T')[0] : '',
+        cep: patient.cep || '',
+        street: patient.street || '',
+        number: patient.number || '',
+        district: patient.district || '',
+        city: patient.city || '',
+        state: patient.state || '',
+      });
+      
+      if (patient.image_url) {
+        setImagePreview(patient.image_url);
       }
-    } catch (error: any) {
-      console.error(`Erro ao buscar arquivos do ${bucket}:`, error);
-      toast.error(`Erro ao buscar arquivos: ${error.message}`);
+    }
+  }, [patient, form]);
+
+  // Busca o CEP e preenche campos de endereço
+  const fetchAddressByCep = async (cep: string) => {
+    if (!cep || cep.length !== 8) return;
+    
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
+      
+      if (data.erro) {
+        toast.error('CEP não encontrado');
+        return;
+      }
+      
+      form.setValue('street', data.logradouro);
+      form.setValue('district', data.bairro);
+      form.setValue('city', data.localidade);
+      form.setValue('state', data.uf);
+      
+      // Foca no campo número após preencher o endereço
+      document.getElementById('number')?.focus();
+    } catch (error) {
+      console.error('Erro ao buscar CEP:', error);
+      toast.error('Erro ao buscar CEP. Tente novamente.');
     }
   };
 
-  const handleFileSelect = () => {
-    fileInputRef.current?.click();
+  // Função para enviar o formulário
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!user) {
+      toast.error('Você precisa estar logado para cadastrar pacientes');
+      return;
+    }
+    
+    if (!clinicId) {
+      toast.error('Erro ao obter ID da clínica');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      let imageUrl = patient?.image_url || null;
+      
+      // Se tiver um arquivo de imagem, faz o upload
+      if (imageFile) {
+        const uploadedImageUrl = await handleImageUpload(imageFile);
+        if (uploadedImageUrl) {
+          imageUrl = uploadedImageUrl;
+        }
+      }
+      
+      // Dados do paciente para insert/update
+      const patientData = {
+        name: values.name,
+        cpf: values.cpf,
+        gender: values.gender,
+        birth_date: values.birth_date,
+        cep: values.cep,
+        street: values.street,
+        number: values.number,
+        district: values.district,
+        city: values.city,
+        state: values.state,
+        image_url: imageUrl,
+        clinic_id: clinicId,
+        user_id: user.id
+      };
+      
+      let result;
+      
+      if (patient?.id) {
+        // Atualizar paciente existente
+        result = await supabase
+          .from('patients')
+          .update(patientData)
+          .eq('id', patient.id);
+      } else {
+        // Inserir novo paciente
+        result = await supabase
+          .from('patients')
+          .insert(patientData)
+          .select();
+      }
+      
+      if (result.error) {
+        throw result.error;
+      }
+      
+      // Sucesso!
+      toast.success(
+        patient?.id 
+          ? 'Paciente atualizado com sucesso!' 
+          : 'Paciente cadastrado com sucesso!'
+      );
+      
+      // Callback de sucesso ou navegação
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        navigate('/pacientes');
+      }
+      
+    } catch (error: any) {
+      console.error('Erro ao salvar paciente:', error);
+      toast.error(`Erro ao salvar paciente: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files;
-    if (!selectedFiles || selectedFiles.length === 0) return;
-
+  // Upload da imagem para o Storage
+  const handleImageUpload = async (file: File): Promise<string | null> => {
     try {
       setIsUploading(true);
-      setProgress(0);
-
-      // Upload de múltiplos arquivos em sequência
-      for (let i = 0; i < selectedFiles.length; i++) {
-        const file = selectedFiles[i];
+      setUploadProgress(0);
+      
+      // Gerar um nome único para o arquivo
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${patient?.id || 'new'}/${fileName}`;
+      
+      // Fazer upload para o Storage
+      const { error: uploadError, data } = await supabase.storage
+        .from('patient_images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
         
-        // Validar tipo de arquivo
-        if (!fileTypes.includes(file.type)) {
-          toast.error(`Tipo de arquivo não permitido: ${file.type}`);
-          continue;
-        }
-
-        // Validar tamanho (max 15MB)
-        if (file.size > 15 * 1024 * 1024) {
-          toast.error(`O arquivo ${file.name} excede o limite de 15MB.`);
-          continue;
-        }
-
-        // Upload do arquivo
-        const filePath = `${patientId}/${file.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from(bucket)
-          .upload(filePath, file, {
-            upsert: true,
-            onUploadProgress: (evt) => {
-              if (evt?.total) {
-                const pct = Math.round((evt.loaded / evt.total) * 100);
-                setProgress(pct);
-              }
-            }
-          });
-
-        if (uploadError) {
-          console.error(`Erro ao fazer upload de ${file.name}:`, uploadError);
-          toast.error(`Erro ao enviar ${file.name}: ${uploadError.message}`);
-          continue;
-        }
-
-        // Arquivo pequeno
-        setProgress(100);
+      if (uploadError) {
+        console.error('Erro durante upload:', uploadError);
+        throw uploadError;
       }
-
-      // Atualizar lista de arquivos
-      await fetchFiles();
-      toast.success('Arquivos enviados com sucesso!');
+      
+      // Fallback para arquivos pequenos
+      setUploadProgress(100);
+      
+      console.log('Upload concluído com sucesso:', data);
+      
+      // Obter URL pública
+      const { data: urlData } = supabase.storage
+        .from('patient_images')
+        .getPublicUrl(filePath);
+        
+      return urlData.publicUrl;
     } catch (error: any) {
-      console.error('Erro ao fazer upload:', error);
-      toast.error(`Erro ao enviar arquivos: ${error.message}`);
+      console.error('Erro no upload da imagem:', error);
+      toast.error(`Erro ao enviar imagem: ${error.message}`);
+      return null;
     } finally {
       setIsUploading(false);
-      // Limpar input file
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
-  const handleDelete = async (file: FileItem) => {
-    if (!confirm(`Deseja mesmo excluir o arquivo ${file.name}?`)) return;
-
-    try {
-      const { error } = await supabase.storage
-        .from(bucket)
-        .remove([file.path]);
-
-      if (error) throw error;
-
-      // Atualizar lista de arquivos
-      setFiles(files.filter(f => f.path !== file.path));
-      toast.success(`Arquivo ${file.name} removido com sucesso!`);
-    } catch (error: any) {
-      console.error('Erro ao excluir arquivo:', error);
-      toast.error(`Erro ao remover arquivo: ${error.message}`);
+  // Handler para a mudança de imagem
+  const handleImageChange = (file: File | null) => {
+    setImageFile(file);
+    
+    if (file) {
+      const objectUrl = URL.createObjectURL(file);
+      setImagePreview(objectUrl);
+    } else {
+      setImagePreview(patient?.image_url || null);
     }
-  };
-
-  const handleDownload = async (file: FileItem) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .download(file.path);
-
-      if (error) throw error;
-
-      // Criar URL de download
-      const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error: any) {
-      console.error('Erro ao baixar arquivo:', error);
-      toast.error(`Erro ao baixar arquivo: ${error.message}`);
-    }
-  };
-
-  // Função para formatar o tamanho do arquivo
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">{title}</h3>
-        <Button 
-          type="button" 
-          variant="outline" 
-          onClick={handleFileSelect}
-          disabled={isUploading}
-          size="sm"
-        >
-          <Upload className="h-4 w-4 mr-2" />
-          Enviar {allowMultiple ? 'arquivos' : 'arquivo'}
-        </Button>
+    <div className="max-w-5xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6 text-green-500">
+        {patient?.id ? 'Editar Paciente' : 'Novo Paciente'}
+      </h1>
+      
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome completo</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nome completo do paciente" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept={fileTypes.join(',')}
-          className="hidden"
-          multiple={allowMultiple}
-          disabled={isUploading}
-        />
-      </div>
+              <FormField
+                control={form.control}
+                name="cpf"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CPF</FormLabel>
+                    <FormControl>
+                      <Input placeholder="000.000.000-00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-      {isUploading && (
-        <div className="mt-2 w-full">
-          <div className="flex items-center gap-2 mb-1">
-            {progress === 0 ? (
-              <>
-                <Spinner size="sm" />
-                <span className="text-sm">Preparando upload...</span>
-              </>
-            ) : (
-              <>
-                <Spinner size="sm" />
-                <span className="text-sm">Enviando... {progress.toFixed(0)}%</span>
-              </>
-            )}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="birth_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data de nascimento</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="gender"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Gênero</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="M">Masculino</SelectItem>
+                          <SelectItem value="F">Feminino</SelectItem>
+                          <SelectItem value="O">Outro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <FormField
+                control={form.control}
+                name="cep"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CEP</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="00000-000" 
+                        {...field}
+                        onBlur={(e) => {
+                          field.onBlur();
+                          fetchAddressByCep(e.target.value.replace(/\D/g, ''));
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-4 gap-4">
+                <div className="col-span-3">
+                  <FormField
+                    control={form.control}
+                    name="street"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rua</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Rua, Avenida, etc" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Número</FormLabel>
+                      <FormControl>
+                        <Input id="number" placeholder="Nº" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="district"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bairro</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Bairro" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-4 gap-4">
+                <div className="col-span-3">
+                  <FormField
+                    control={form.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cidade</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Cidade" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>UF</FormLabel>
+                      <FormControl>
+                        <Input placeholder="UF" maxLength={2} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
           </div>
-          <Progress value={progress} className="h-2" />
-        </div>
-      )}
 
-      {files.length === 0 ? (
-        <div className="text-center py-8 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
-          <p className="text-gray-500">Nenhum arquivo encontrado</p>
-          <p className="text-sm text-gray-400 mt-1">
-            Clique em "Enviar {allowMultiple ? 'arquivos' : 'arquivo'}" para adicionar
-          </p>
-        </div>
-      ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Nome
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tamanho
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Data
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {files.map((file, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-sm text-gray-900 font-medium">{file.name}</span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-sm text-gray-500">{formatFileSize(file.size)}</span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="text-sm text-gray-500">
-                      {format(new Date(file.created_at), 'dd/MM/yyyy HH:mm')}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleDownload(file)}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleDelete(file)}
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+          <div className="flex justify-end gap-3">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => navigate('/pacientes')}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={isSubmitting || isUploading}
+            >
+              {isSubmitting ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar'
+              )}
+            </Button>
+          </div>
+        </form>
+      </Form>
     </div>
   );
 };
 
-export default FileUploader;
+export default PatientForm;

@@ -252,7 +252,7 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps) => {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6 text-red-500">
+      <h1 className="text-2xl font-bold mb-6 text-green-500">
         {patient?.id ? 'Editar Paciente' : 'Novo Paciente'}
       </h1>
       
