@@ -38,6 +38,7 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
     cpf: '',
   });
   
+  const [dateInputValue, setDateInputValue] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +52,14 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
         gender: patient.gender,
         cpf: patient.cpf,
       });
+      
+      if (patient.birth_date) {
+        const date = new Date(patient.birth_date);
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear();
+        setDateInputValue(`${day}/${month}/${year}`);
+      }
       
       if (patient.image_url) {
         setImagePreview(patient.image_url);
@@ -85,19 +94,40 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
 
   const handleBirthDateChange = (date: Date | null) => {
     setFormData({ ...formData, birthDate: date });
+    
+    if (date) {
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      setDateInputValue(`${day}/${month}/${year}`);
+    } else {
+      setDateInputValue('');
+    }
   };
 
   // Funções para processamento da data manualmente digitada
   const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const dateValue = e.target.value;
+    const value = e.target.value;
+    setDateInputValue(value);
     
-    if (!dateValue) {
+    if (!value) {
       setFormData({ ...formData, birthDate: null });
       return;
     }
     
+    // Aplicar máscara de data (DD/MM/AAAA)
+    let formattedValue = value
+      .replace(/\D/g, '') // Remove não-dígitos
+      .replace(/^(\d{2})(\d)/, '$1/$2') // Coloca / após os 2 primeiros dígitos
+      .replace(/^(\d{2})\/(\d{2})(\d)/, '$1/$2/$3') // Coloca / após os 4 primeiros dígitos
+      .substring(0, 10); // Limita a 10 caracteres (DD/MM/AAAA)
+      
+    if (formattedValue !== value) {
+      setDateInputValue(formattedValue);
+    }
+    
     // Tenta converter a data dd/mm/yyyy para um objeto Date
-    const parts = dateValue.split('/');
+    const parts = formattedValue.split('/');
     if (parts.length === 3) {
       const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1; // Meses em JS são 0-11
@@ -119,6 +149,9 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
         }
       }
     }
+    
+    // Se chegou aqui, a data não é válida
+    setFormData({ ...formData, birthDate: null });
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -250,11 +283,6 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
   };
 
   const isFormDisabled = isLoading;
-  
-  // Formatação da data para exibição no input
-  const formattedDate = formData.birthDate 
-    ? `${formData.birthDate.getDate().toString().padStart(2, '0')}/${(formData.birthDate.getMonth() + 1).toString().padStart(2, '0')}/${formData.birthDate.getFullYear()}`
-    : '';
 
   return (
     <div className="space-y-6">
@@ -285,19 +313,19 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
                     <div className="form-input-group">
                       <Label htmlFor="birthDate" className="required-field">Data de nascimento</Label>
                       
-                      {/* Opção 1: Input para digitação direta */}
+                      {/* Input para digitação direta */}
                       <Input
                         id="birthDate"
                         name="birthDate"
                         type="text"
                         placeholder="DD/MM/AAAA"
-                        value={formattedDate}
+                        value={dateInputValue}
                         onChange={handleDateInputChange}
                         className="mb-1"
                         disabled={isFormDisabled}
                       />
                       
-                      {/* Opção 2: DatePicker oculto que é ativado por um botão */}
+                      {/* DatePicker oculto que é ativado por um botão */}
                       <div className="relative">
                         <DatePicker
                           selected={formData.birthDate}
