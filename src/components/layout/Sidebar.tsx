@@ -41,11 +41,17 @@ const Sidebar = () => {
     >
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          {expanded && (
+          {expanded ? (
             <img 
               src="https://sq360.com.br/logo-hubb-novo/logo_hubb_assisit.png" 
               alt="Hubb Assist" 
               className="h-10 w-auto" 
+            />
+          ) : (
+            <img 
+              src="https://sq360.com.br/logo-hubb-novo/logo_hubb_assisit_favicon.png" 
+              alt="Hubb Assist" 
+              className="h-8 w-auto" 
             />
           )}
         </div>
