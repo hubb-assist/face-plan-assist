@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -124,30 +123,6 @@ const PatientForm = () => {
       return;
     }
     
-    if (!clinicId) {
-      console.error("Não foi possível identificar a clínica. clinicId:", clinicId);
-      // Tentar recuperar novamente
-      try {
-        if (user?.id) {
-          const profile = await fetchUserProfile(user.id);
-          if (!profile?.clinic_id) {
-            toast.error("Não foi possível identificar a clínica. Por favor, faça logout e login novamente.");
-            setIsLoading(false);
-            return;
-          }
-        } else {
-          toast.error("Usuário não identificado. Por favor, faça logout e login novamente.");
-          setIsLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.error("Erro ao tentar recuperar o perfil:", error);
-        toast.error("Não foi possível identificar a clínica. Por favor, faça logout e login novamente.");
-        setIsLoading(false);
-        return;
-      }
-    }
-    
     try {
       // Upload da imagem se fornecida
       let imageUrl = null;
@@ -160,10 +135,11 @@ const PatientForm = () => {
         }
       }
       
-      console.log('Salvando paciente com clínica ID:', clinicId);
+      console.log('Salvando paciente (clinic_id será usado automaticamente via default)');
       console.log('Salvando paciente com imagem URL:', imageUrl);
       
       // Salvar dados do paciente no Supabase
+      // Não precisamos mais enviar clinic_id, pois ele tem um valor padrão agora
       const { data, error } = await supabase
         .from('patients')
         .insert([{
@@ -172,7 +148,6 @@ const PatientForm = () => {
           gender: formData.gender,
           cpf: formData.cpf,
           image_url: imageUrl,
-          clinic_id: clinicId,
           user_id: user?.id
         }])
         .select();
@@ -206,7 +181,9 @@ const PatientForm = () => {
     }
   };
 
-  const isFormDisabled = isLoading || profileLoading || isLoadingProfile || !clinicId;
+  // Simplificando a verificação - agora não nos preocupamos tanto com clinicId
+  // já que ele é configurado automaticamente no banco de dados
+  const isFormDisabled = isLoading || profileLoading || isLoadingProfile;
 
   return (
     <div className="space-y-6">
@@ -215,13 +192,6 @@ const PatientForm = () => {
       {(profileLoading || isLoadingProfile) && (
         <div className="p-4 bg-blue-50 rounded-md">
           <p className="text-blue-700">Carregando dados do seu perfil...</p>
-        </div>
-      )}
-      
-      {!clinicId && !profileLoading && !isLoadingProfile && (
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-          <p className="text-yellow-700 font-medium">Atenção: Não foi possível identificar sua clínica.</p>
-          <p className="text-yellow-600">Por favor, tente fazer logout e login novamente. Se o problema persistir, entre em contato com o suporte.</p>
         </div>
       )}
       
@@ -350,7 +320,7 @@ const PatientForm = () => {
               ? 'Salvando...' 
               : (profileLoading || isLoadingProfile 
                 ? 'Carregando perfil...' 
-                : (!clinicId ? 'Clínica não identificada' : 'Salvar Paciente'))}
+                : 'Salvar Paciente')}
           </Button>
         </div>
       </form>

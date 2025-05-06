@@ -41,7 +41,7 @@ export type Database = {
         }
         Insert: {
           birth_date: string
-          clinic_id: string
+          clinic_id?: string
           cpf: string
           created_at?: string
           gender: string
@@ -113,6 +113,10 @@ export type Database = {
         Returns: string
       }
       get_auth_user_profile_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_clinic_id: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
