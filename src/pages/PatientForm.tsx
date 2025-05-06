@@ -1,215 +1,207 @@
+
 import React, { useState, useEffect, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import DatePicker from 'react-datepicker';
-import { ptBR } from 'date-fns/locale';
-import { isValid, isAfter, parse } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
-import ImageUpload from '@/components/patients/ImageUpload';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Input } from '@/components/ui/input';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import InputMask from 'react-input-mask';
-import 'react-datepicker/dist/react-datepicker.css';
-import { Progress } from '@/components/ui/progress';
+import ImageUpload from '@/components/patients/ImageUpload';
+import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { Spinner } from '@/components/ui/spinner';
-import { 
-  AlertDialog, 
-  AlertDialogTrigger, 
-  AlertDialogContent,
-  AlertDialogTitle, 
-  AlertDialogDescription,
-  AlertDialogCancel, 
-  AlertDialogAction 
-} from "@/components/ui/alert-dialog";
-
-// Componente de input com máscara para o DatePicker
-const MaskedInput = forwardRef<HTMLInputElement, any>((props, ref) => (
-  <InputMask
-    {...props}
-    mask="99/99/9999"
-    placeholder="DD/MM/AAAA"
-    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-    ref={ref}
-  />
-));
-MaskedInput.displayName = 'MaskedInput';
 
 interface PatientFormProps {
-  patient?: {
-    id: string;
-    name: string;
-    birth_date: string;
-    gender: string;
-    cpf: string;
-    image_url?: string;
-    cep?: string;
-    street?: string;
-    number?: string;
-    district?: string;
-    city?: string;
-    state?: string;
-  };
+  patient?: any;
   onSuccess?: () => void;
 }
 
-const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const isEdit = !!patient?.id;
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    birthDate: null as Date | null,
-    gender: '',
-    cpf: '',
-    cep: '',
-    street: '',
-    number: '',
-    district: '',
-    city: '',
-    state: ''
-  });
-  
-  const [image, setImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFetchingAddress, setIsFetchingAddress] = useState(false);
+const PatientForm = ({ patient, onSuccess }: PatientFormProps) => {
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(patient?.image_url || null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const maxDate = new Date();
   
-  // Carregar dados para edição, se for o caso
+  const { user } = useAuth();
+  const { clinicId } = useProfile(user?.id);
+  const navigate = useNavigate();
+
+  // Schema de validação
+  const formSchema = z.object({
+    name: z.string().min(3, { message: 'Nome deve ter pelo menos 3 caracteres' }),
+    cpf: z.string().min(11, { message: 'CPF deve ter 11 dígitos' }),
+    gender: z.string().min(1, { message: 'Selecione o gênero' }),
+    birth_date: z.string().min(1, { message: 'Informe a data de nascimento' }),
+    cep: z.string().optional(),
+    street: z.string().optional(),
+    number: z.string().optional(),
+    district: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+  });
+
+  // Inicializando formulário com valores padrão
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: patient?.name || '',
+      cpf: patient?.cpf || '',
+      gender: patient?.gender || '',
+      birth_date: patient?.birth_date ? patient.birth_date.split('T')[0] : '',
+      cep: patient?.cep || '',
+      street: patient?.street || '',
+      number: patient?.number || '',
+      district: patient?.district || '',
+      city: patient?.city || '',
+      state: patient?.state || '',
+    },
+  });
+
+  // Se o formulário está sendo usado para edição e temos um paciente
   useEffect(() => {
     if (patient) {
-      setFormData({
-        name: patient.name,
-        birthDate: patient.birth_date ? new Date(patient.birth_date) : null,
-        gender: patient.gender,
-        cpf: patient.cpf,
+      form.reset({
+        name: patient.name || '',
+        cpf: patient.cpf || '',
+        gender: patient.gender || '',
+        birth_date: patient.birth_date ? patient.birth_date.split('T')[0] : '',
         cep: patient.cep || '',
         street: patient.street || '',
         number: patient.number || '',
         district: patient.district || '',
         city: patient.city || '',
-        state: patient.state || ''
+        state: patient.state || '',
       });
       
       if (patient.image_url) {
         setImagePreview(patient.image_url);
       }
     }
-  }, [patient]);
-  
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  }, [patient, form]);
+
+  // Busca o CEP e preenche campos de endereço
+  const fetchAddressByCep = async (cep: string) => {
+    if (!cep || cep.length !== 8) return;
     
-    // Handle CPF formatting
-    if (name === 'cpf') {
-      const cpfValue = value.replace(/\D/g, '');
-      let formattedCpf = cpfValue;
-      
-      if (cpfValue.length > 3) {
-        formattedCpf = cpfValue.replace(/^(\d{3})(\d)/, '$1.$2');
-      }
-      if (cpfValue.length > 6) {
-        formattedCpf = formattedCpf.replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3');
-      }
-      if (cpfValue.length > 9) {
-        formattedCpf = formattedCpf.replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
-      }
-      
-      setFormData({ ...formData, cpf: formattedCpf });
-      return;
-    }
-    
-    setFormData({ ...formData, [name]: value });
-  };
-
-  const handleBirthDateChange = (date: Date | null, e: React.SyntheticEvent<any>) => {
-    // Se veio string digitada manualmente
-    if (typeof (e as any).target?.value === 'string') {
-      const str = (e as any).target.value; // dd/MM/yyyy
-      const parsed = parse(str, 'dd/MM/yyyy', new Date());
-
-      if (!isValid(parsed) || isAfter(parsed, maxDate)) {
-        // Ignora entradas inválidas
-        return;
-      }
-      setFormData({ ...formData, birthDate: parsed });
-    } else {
-      setFormData({ ...formData, birthDate: date });
-    }
-  };
-
-  // Função para buscar endereço via CEP
-  const fetchAddress = async (cep: string) => {
-    const cleanCep = cep.replace(/\D/g, '');
-    if (cleanCep.length !== 8) return;
-
     try {
-      setIsFetchingAddress(true);
-      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-      const data = await res.json();
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
       
       if (data.erro) {
         toast.error('CEP não encontrado');
         return;
       }
       
-      setFormData(prev => ({
-        ...prev,
-        street: data.logradouro || prev.street,
-        district: data.bairro || prev.district,
-        city: data.localidade || prev.city,
-        state: data.uf || prev.state
-      }));
+      form.setValue('street', data.logradouro);
+      form.setValue('district', data.bairro);
+      form.setValue('city', data.localidade);
+      form.setValue('state', data.uf);
+      
+      // Foca no campo número após preencher o endereço
+      document.getElementById('number')?.focus();
     } catch (error) {
-      console.error('Erro ao buscar endereço:', error);
-      toast.error('Erro ao buscar o endereço. Tente novamente.');
-    } finally {
-      setIsFetchingAddress(false);
+      console.error('Erro ao buscar CEP:', error);
+      toast.error('Erro ao buscar CEP. Tente novamente.');
     }
   };
 
-  // Handler para mudança no CEP
-  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFormData(prev => ({ ...prev, cep: value }));
+  // Função para enviar o formulário
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!user) {
+      toast.error('Você precisa estar logado para cadastrar pacientes');
+      return;
+    }
     
-    // Buscar endereço quando o CEP estiver completo
-    const cleanCep = value.replace(/\D/g, '');
-    if (cleanCep.length === 8) {
-      fetchAddress(value);
+    if (!clinicId) {
+      toast.error('Erro ao obter ID da clínica');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      let imageUrl = patient?.image_url || null;
+      
+      // Se tiver um arquivo de imagem, faz o upload
+      if (imageFile) {
+        const uploadedImageUrl = await handleImageUpload(imageFile);
+        if (uploadedImageUrl) {
+          imageUrl = uploadedImageUrl;
+        }
+      }
+      
+      // Dados do paciente para insert/update
+      const patientData = {
+        ...values,
+        image_url: imageUrl,
+        clinic_id: clinicId,
+        user_id: user.id
+      };
+      
+      let result;
+      
+      if (patient?.id) {
+        // Atualizar paciente existente
+        result = await supabase
+          .from('patients')
+          .update(patientData)
+          .eq('id', patient.id);
+      } else {
+        // Inserir novo paciente
+        result = await supabase
+          .from('patients')
+          .insert(patientData)
+          .select();
+      }
+      
+      if (result.error) {
+        throw result.error;
+      }
+      
+      // Sucesso!
+      toast.success(
+        patient?.id 
+          ? 'Paciente atualizado com sucesso!' 
+          : 'Paciente cadastrado com sucesso!'
+      );
+      
+      // Callback de sucesso ou navegação
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        navigate('/pacientes');
+      }
+      
+    } catch (error: any) {
+      console.error('Erro ao salvar paciente:', error);
+      toast.error(`Erro ao salvar paciente: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const uploadImage = async (file: File): Promise<string | null> => {
+  // Upload da imagem para o Storage
+  const handleImageUpload = async (file: File): Promise<string | null> => {
     try {
       setIsUploading(true);
       setUploadProgress(0);
       
+      // Gerar um nome único para o arquivo
       const fileExt = file.name.split('.').pop();
-      // Gerando um nome de arquivo único usando timestamp e random
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `${user?.id || 'public'}/${fileName}`;
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${patient?.id || 'new'}/${fileName}`;
       
-      console.log('Iniciando upload da imagem:', filePath);
-      
+      // Fazer upload para o Storage
       const { error: uploadError, data } = await supabase.storage
         .from('patient_images')
         .upload(filePath, file, {
-          upsert: false,
-          onUploadProgress: (evt) => {
-            if (evt?.total) {  // Garante que total > 0
-              const pct = Math.round((evt.loaded / evt.total) * 100);
-              setUploadProgress(pct);
-            }
-          }
+          cacheControl: '3600',
+          upsert: true
         });
         
       if (uploadError) {
@@ -218,398 +210,243 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
       }
       
       // Fallback para arquivos pequenos
-      if (!uploadError) {
-        setUploadProgress(100);
-      }
+      setUploadProgress(100);
       
       console.log('Upload concluído com sucesso:', data);
       
+      // Obter URL pública
       const { data: urlData } = supabase.storage
         .from('patient_images')
         .getPublicUrl(filePath);
         
-      console.log('URL pública gerada:', urlData.publicUrl);
       return urlData.publicUrl;
-    } catch (error) {
-      console.error('Erro ao fazer upload da imagem:', error);
+    } catch (error: any) {
+      console.error('Erro no upload da imagem:', error);
+      toast.error(`Erro ao enviar imagem: ${error.message}`);
       return null;
     } finally {
       setIsUploading(false);
     }
   };
 
-  const submitForm = async () => {
-    // Validation code from handleSubmit...
-    if (!formData.name || !formData.birthDate || !formData.gender || !formData.cpf) {
-      toast.error("Por favor, preencha todos os campos obrigatórios");
-      return;
-    }
-    
-    if (isAfter(formData.birthDate, new Date())) {
-      toast.error("Data de nascimento inválida");
-      return;
-    }
-    
-    try {
-      setIsLoading(true);
-      
-      // Upload da imagem se fornecida
-      let imageUrl = null;
-      if (image) {
-        imageUrl = await uploadImage(image);
-        if (!imageUrl) {
-          toast.error("Erro ao fazer upload da imagem. Tente novamente.");
-          setIsLoading(false);
-          return;
-        }
-      }
-      
-      const body = {
-        name: formData.name,
-        birth_date: formData.birthDate?.toISOString().split('T')[0],
-        gender: formData.gender,
-        cpf: formData.cpf,
-        user_id: user?.id,
-        cep: formData.cep || null,
-        street: formData.street || null,
-        number: formData.number || null,
-        district: formData.district || null,
-        city: formData.city || null,
-        state: formData.state || null
-      };
-      
-      // Adicionar a URL da imagem apenas se tiver uma nova
-      if (imageUrl) {
-        body['image_url'] = imageUrl;
-      }
-      
-      let error;
-      
-      if (isEdit) {
-        // Atualizar paciente existente
-        const { error: updateError } = await supabase
-          .from('patients')
-          .update(body)
-          .eq('id', patient.id);
-          
-        error = updateError;
-        
-        if (!error) {
-          toast.success("Paciente atualizado com sucesso!");
-        }
-      } else {
-        // Inserir novo paciente
-        const { error: insertError } = await supabase
-          .from('patients')
-          .insert([body])
-          .select();
-          
-        error = insertError;
-        
-        if (!error) {
-          toast.success("Paciente cadastrado com sucesso!");
-        }
-      }
-      
-      if (error) {
-        console.error('Erro ao salvar paciente:', error);
-        throw error;
-      }
-      
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        navigate("/pacientes");
-      }
-    } catch (error: any) {
-      console.error("Error saving patient:", error);
-      toast.error(`Erro ao ${isEdit ? 'atualizar' : 'cadastrar'} paciente: ${error.message || 'Verifique se todos os campos estão preenchidos corretamente'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    submitForm();
-  };
-
+  // Handler para a mudança de imagem
   const handleImageChange = (file: File | null) => {
-    setImage(file);
+    setImageFile(file);
     
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      const objectUrl = URL.createObjectURL(file);
+      setImagePreview(objectUrl);
     } else {
-      setImagePreview(null);
+      setImagePreview(patient?.image_url || null);
     }
   };
 
-  const isFormDisabled = isLoading || isFetchingAddress || isUploading;
-
   return (
-    <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-hubAssist-primary">
-        {isEdit ? 'Editar Paciente' : 'Cadastrar Novo Paciente'}
-      </h2>
+    <div className="max-w-5xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">
+        {patient?.id ? 'Editar Paciente' : 'Novo Paciente'}
+      </h1>
       
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="md:col-span-2">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <div className="form-input-group">
-                    <Label htmlFor="name" className="required-field">Nome completo</Label>
-                    <Input
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      placeholder="Nome do paciente"
-                      required
-                      disabled={isFormDisabled}
-                    />
-                  </div>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome completo</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nome completo do paciente" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="form-input-group">
-                      <Label htmlFor="birthDate" className="required-field">Data de nascimento</Label>
-                      
-                      <DatePicker
-                        selected={formData.birthDate}
-                        onChange={handleBirthDateChange}
-                        locale={ptBR}
-                        dateFormat="dd/MM/yyyy"
-                        maxDate={maxDate}
-                        showMonthDropdown
-                        showYearDropdown
-                        dropdownMode="select"
-                        scrollableYearDropdown
-                        yearDropdownItemNumber={120}
-                        placeholderText="DD/MM/AAAA"
-                        customInput={<MaskedInput />}
-                        disabled={isFormDisabled}
-                        popperClassName="z-50"
-                        popperModifiers={[
-                          {
-                            name: "offset",
-                            options: {
-                              offset: [0, 10],
-                            },
-                          },
-                        ]}
-                      />
-                    </div>
+              <FormField
+                control={form.control}
+                name="cpf"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CPF</FormLabel>
+                    <FormControl>
+                      <Input placeholder="000.000.000-00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                    <div className="form-input-group">
-                      <Label htmlFor="gender" className="required-field">Gênero</Label>
-                      <Select 
-                        onValueChange={(value) => setFormData({ ...formData, gender: value })}
-                        value={formData.gender}
-                        disabled={isFormDisabled}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="birth_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data de nascimento</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="gender"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Gênero</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                        </FormControl>
                         <SelectContent>
                           <SelectItem value="M">Masculino</SelectItem>
                           <SelectItem value="F">Feminino</SelectItem>
                           <SelectItem value="O">Outro</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-
-                    <div className="form-input-group">
-                      <Label htmlFor="cpf" className="required-field">CPF</Label>
-                      <InputMask
-                        mask="999.999.999-99"
-                        value={formData.cpf}
-                        onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                        disabled={isFormDisabled}
-                      >
-                        {(inputProps) => (
-                          <Input
-                            {...inputProps}
-                            id="cpf"
-                            className="max-w-sm"
-                            placeholder="000.000.000-00"
-                            required
-                          />
-                        )}
-                      </InputMask>
-                    </div>
-                  </div>
-
-                  {/* Endereço */}
-                  <div className="pt-2 border-t">
-                    <h3 className="text-lg font-medium mb-3">Endereço</h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="form-input-group">
-                        <Label htmlFor="cep">CEP</Label>
-                        <InputMask
-                          mask="99999-999"
-                          value={formData.cep}
-                          onChange={handleCepChange}
-                          disabled={isFormDisabled}
-                        >
-                          {(inputProps) => (
-                            <Input
-                              {...inputProps}
-                              id="cep"
-                              className="max-w-xs"
-                              placeholder="00000-000"
-                            />
-                          )}
-                        </InputMask>
-                        {isFetchingAddress && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Buscando endereço...
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-                      <div className="md:col-span-3 form-input-group">
-                        <Label htmlFor="street">Logradouro</Label>
-                        <Input
-                          id="street"
-                          name="street"
-                          value={formData.street}
-                          onChange={handleInputChange}
-                          placeholder="Rua, Avenida, etc."
-                          disabled={isFormDisabled}
-                        />
-                      </div>
-
-                      <div className="form-input-group">
-                        <Label htmlFor="number">Número</Label>
-                        <Input
-                          id="number"
-                          name="number"
-                          value={formData.number}
-                          onChange={handleInputChange}
-                          placeholder="Nº"
-                          disabled={isFormDisabled}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                      <div className="form-input-group">
-                        <Label htmlFor="district">Bairro</Label>
-                        <Input
-                          id="district"
-                          name="district"
-                          value={formData.district}
-                          onChange={handleInputChange}
-                          placeholder="Bairro"
-                          disabled={isFormDisabled}
-                        />
-                      </div>
-
-                      <div className="form-input-group">
-                        <Label htmlFor="city">Cidade</Label>
-                        <Input
-                          id="city"
-                          name="city"
-                          value={formData.city}
-                          onChange={handleInputChange}
-                          placeholder="Cidade"
-                          disabled={isFormDisabled}
-                        />
-                      </div>
-
-                      <div className="form-input-group">
-                        <Label htmlFor="state">Estado</Label>
-                        <Input
-                          id="state"
-                          name="state"
-                          value={formData.state}
-                          onChange={handleInputChange}
-                          placeholder="UF"
-                          maxLength={2}
-                          className="uppercase"
-                          disabled={isFormDisabled}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="md:col-span-1">
-            <Card>
-              <CardContent className="pt-6">
-                <Label className="required-field mb-2 block">Foto do paciente</Label>
-                <ImageUpload 
-                  imagePreview={imagePreview}
-                  onImageChange={handleImageChange}
-                  disabled={isFormDisabled}
-                  isUploading={isUploading}
-                  uploadProgress={uploadProgress}
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Formatos aceitos: JPG, PNG. Tamanho máximo: 5MB
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+              </div>
+            </div>
 
-        <div className="flex justify-end gap-4">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => navigate('/pacientes')}
-            disabled={isLoading}
-          >
-            Cancelar
-          </Button>
-          
-          {isEdit ? (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button 
-                  type="button" 
-                  className="btn-primary"
-                  disabled={isFormDisabled}
-                >
-                  {isLoading ? 'Salvando...' : 'Atualizar Paciente'}
-                </Button>
-              </AlertDialogTrigger>
+            <div className="space-y-6">
+              <FormField
+                control={form.control}
+                name="cep"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CEP</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="00000-000" 
+                        {...field}
+                        onBlur={(e) => {
+                          field.onBlur();
+                          fetchAddressByCep(e.target.value.replace(/\D/g, ''));
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              <AlertDialogContent>
-                <AlertDialogTitle>Confirmar edição?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  As alterações serão salvas imediatamente.
-                </AlertDialogDescription>
-                <div className="flex justify-end gap-2 mt-4">
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction type="button" onClick={submitForm}>
-                    Salvar
-                  </AlertDialogAction>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="col-span-3">
+                  <FormField
+                    control={form.control}
+                    name="street"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rua</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Rua, Avenida, etc" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : (
+                <FormField
+                  control={form.control}
+                  name="number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Número</FormLabel>
+                      <FormControl>
+                        <Input id="number" placeholder="Nº" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="district"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bairro</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Bairro" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-4 gap-4">
+                <div className="col-span-3">
+                  <FormField
+                    control={form.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cidade</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Cidade" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>UF</FormLabel>
+                      <FormControl>
+                        <Input placeholder="UF" maxLength={2} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => navigate('/pacientes')}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
             <Button 
               type="submit" 
-              className="btn-primary"
-              disabled={isFormDisabled}
+              disabled={isSubmitting || isUploading}
             >
-              {isLoading ? 'Salvando...' : 'Salvar Paciente'}
+              {isSubmitting ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar'
+              )}
             </Button>
-          )}
-        </div>
-      </form>
+          </div>
+        </form>
+      </Form>
     </div>
   );
 };
