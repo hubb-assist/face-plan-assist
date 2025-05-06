@@ -31,7 +31,7 @@ const PhotoUploader = ({ patientId, view, label }: PhotoUploaderProps) => {
         .getPublicUrl(filePath);
       
       // Verificar se a imagem existe tentando carregá-la
-      const img = new Image();
+      const img = document.createElement('img');
       img.onload = () => setImageUrl(data.publicUrl);
       img.onerror = () => setImageUrl(null);
       img.src = data.publicUrl;
@@ -68,14 +68,6 @@ const PhotoUploader = ({ patientId, view, label }: PhotoUploaderProps) => {
       // Upload da imagem
       const filePath = `${patientId}/${view}.jpg`;
       
-      // Definir função para acompanhar o progresso separadamente
-      const progressHandler = (progress: { loaded: number; total?: number }) => {
-        if (progress.total) {
-          const pct = Math.round((progress.loaded / progress.total) * 100);
-          setProgress(pct);
-        }
-      };
-      
       const { error: uploadError } = await supabase.storage
         .from('clinical_photos')
         .upload(filePath, file, {
@@ -87,7 +79,7 @@ const PhotoUploader = ({ patientId, view, label }: PhotoUploaderProps) => {
         throw uploadError;
       }
 
-      // Fallback para arquivos pequenos
+      // Atualizar progresso manualmente para arquivos pequenos
       setProgress(100);
       
       // Atualizar a imagem
