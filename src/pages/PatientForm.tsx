@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,24 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import ImageUpload from '@/components/patients/ImageUpload';
 import { supabase } from '@/integrations/supabase/client';
+
+// Componente de input personalizado para o DatePicker que não é readOnly
+const CustomInput = forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement>
+>(({ value, onClick, onChange, placeholder, disabled, className }, ref) => (
+  <Input
+    value={value as string}
+    onClick={onClick}
+    onChange={onChange}
+    placeholder={placeholder}
+    disabled={disabled}
+    className={className}
+    ref={ref}
+    readOnly={false}
+  />
+));
+CustomInput.displayName = 'CustomInput';
 
 interface PatientFormProps {
   patient?: {
@@ -38,7 +56,6 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
     cpf: '',
   });
   
-  const [dateInputValue, setDateInputValue] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -52,14 +69,6 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
         gender: patient.gender,
         cpf: patient.cpf,
       });
-      
-      if (patient.birth_date) {
-        const date = new Date(patient.birth_date);
-        const day = date.getDate().toString().padStart(2, '0');
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const year = date.getFullYear();
-        setDateInputValue(`${day}/${month}/${year}`);
-      }
       
       if (patient.image_url) {
         setImagePreview(patient.image_url);
@@ -94,64 +103,6 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
 
   const handleBirthDateChange = (date: Date | null) => {
     setFormData({ ...formData, birthDate: date });
-    
-    if (date) {
-      const day = date.getDate().toString().padStart(2, '0');
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const year = date.getFullYear();
-      setDateInputValue(`${day}/${month}/${year}`);
-    } else {
-      setDateInputValue('');
-    }
-  };
-
-  // Funções para processamento da data manualmente digitada
-  const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setDateInputValue(value);
-    
-    if (!value) {
-      setFormData({ ...formData, birthDate: null });
-      return;
-    }
-    
-    // Aplicar máscara de data (DD/MM/AAAA)
-    let formattedValue = value
-      .replace(/\D/g, '') // Remove não-dígitos
-      .replace(/^(\d{2})(\d)/, '$1/$2') // Coloca / após os 2 primeiros dígitos
-      .replace(/^(\d{2})\/(\d{2})(\d)/, '$1/$2/$3') // Coloca / após os 4 primeiros dígitos
-      .substring(0, 10); // Limita a 10 caracteres (DD/MM/AAAA)
-      
-    if (formattedValue !== value) {
-      setDateInputValue(formattedValue);
-    }
-    
-    // Tenta converter a data dd/mm/yyyy para um objeto Date
-    const parts = formattedValue.split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1; // Meses em JS são 0-11
-      const year = parseInt(parts[2], 10);
-      
-      // Verifica se os valores são números válidos
-      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-        const date = new Date(year, month, day);
-        
-        // Verifica se a data é válida e não está no futuro
-        if (
-          date.getDate() === day && 
-          date.getMonth() === month && 
-          date.getFullYear() === year &&
-          date <= new Date()
-        ) {
-          setFormData({ ...formData, birthDate: date });
-          return;
-        }
-      }
-    }
-    
-    // Se chegou aqui, a data não é válida
-    setFormData({ ...formData, birthDate: null });
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -313,57 +264,33 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
                     <div className="form-input-group">
                       <Label htmlFor="birthDate" className="required-field">Data de nascimento</Label>
                       
-                      {/* Input para digitação direta */}
-                      <Input
-                        id="birthDate"
-                        name="birthDate"
-                        type="text"
-                        placeholder="DD/MM/AAAA"
-                        value={dateInputValue}
-                        onChange={handleDateInputChange}
-                        className="mb-1"
+                      <DatePicker
+                        selected={formData.birthDate}
+                        onChange={handleBirthDateChange}
+                        locale={ptBR}
+                        dateFormat="dd/MM/yyyy"
+                        maxDate={new Date()}
+                        showMonthDropdown
+                        showYearDropdown
+                        dropdownMode="select"
+                        scrollableYearDropdown
+                        yearDropdownItemNumber={120}
+                        placeholderText="DD/MM/AAAA"
+                        className={cn(
+                          "w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+                        )}
+                        customInput={<CustomInput />}
                         disabled={isFormDisabled}
-                      />
-                      
-                      {/* DatePicker oculto que é ativado por um botão */}
-                      <div className="relative">
-                        <DatePicker
-                          selected={formData.birthDate}
-                          onChange={handleBirthDateChange}
-                          locale={ptBR}
-                          dateFormat="dd/MM/yyyy"
-                          maxDate={new Date()}
-                          showMonthDropdown
-                          showYearDropdown
-                          dropdownMode="select"
-                          scrollableYearDropdown
-                          yearDropdownItemNumber={120}
-                          placeholderText="Selecione a data"
-                          className={cn(
-                            "hidden"
-                          )}
-                          customInput={
-                            <Button 
-                              type="button" 
-                              variant="outline" 
-                              size="sm"
-                              className="w-full"
-                              disabled={isFormDisabled}
-                            >
-                              Abrir calendário
-                            </Button>
-                          }
-                          popperClassName="z-50 pointer-events-auto"
-                          popperModifiers={[
-                            {
-                              name: "offset",
-                              options: {
-                                offset: [0, 10],
-                              },
+                        popperClassName="z-50 pointer-events-auto"
+                        popperModifiers={[
+                          {
+                            name: "offset",
+                            options: {
+                              offset: [0, 10],
                             },
-                          ]}
-                        />
-                      </div>
+                          },
+                        ]}
+                      />
                     </div>
 
                     <div className="form-input-group">
