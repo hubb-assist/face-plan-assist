@@ -6,9 +6,10 @@ import { Upload, Image } from 'lucide-react';
 interface ImageUploadProps {
   imagePreview: string | null;
   onImageChange: (file: File | null) => void;
+  disabled?: boolean; // Adicionando a propriedade disabled como opcional
 }
 
-const ImageUpload = ({ imagePreview, onImageChange }: ImageUploadProps) => {
+const ImageUpload = ({ imagePreview, onImageChange, disabled = false }: ImageUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleClick = () => {
@@ -71,6 +72,7 @@ const ImageUpload = ({ imagePreview, onImageChange }: ImageUploadProps) => {
         onChange={handleFileChange}
         accept="image/jpeg,image/png"
         className="hidden"
+        disabled={disabled}
       />
       
       <div className="flex gap-2">
@@ -79,6 +81,7 @@ const ImageUpload = ({ imagePreview, onImageChange }: ImageUploadProps) => {
           onClick={handleClick}
           variant="outline"
           className="flex-1"
+          disabled={disabled}
         >
           <Upload className="mr-2 h-4 w-4" />
           {imagePreview ? 'Alterar' : 'Adicionar'}
@@ -89,6 +92,7 @@ const ImageUpload = ({ imagePreview, onImageChange }: ImageUploadProps) => {
             type="button" 
             variant="destructive"
             onClick={handleRemoveImage}
+            disabled={disabled}
           >
             Remover
           </Button>

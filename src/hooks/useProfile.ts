@@ -18,7 +18,7 @@ export const useProfile = (userId: string | undefined) => {
       console.log('Buscando perfil do usuário:', userId);
       setLoading(true);
       
-      // Buscando diretamente com a função SQL de Supabase para obter clinic_id
+      // Usando a função RPC que evita a recursão infinita
       const { data: clinic, error: clinicError } = await supabase
         .rpc('get_user_clinic_id');
       
@@ -31,7 +31,7 @@ export const useProfile = (userId: string | undefined) => {
         console.log("ID da clínica encontrado:", clinic);
         setClinicId(clinic);
         
-        // Agora busca o perfil completo
+        // Agora busca o perfil através da função de segurança definer
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -69,6 +69,7 @@ export const useProfile = (userId: string | undefined) => {
       }
     } catch (error) {
       console.error("Erro ao buscar perfil:", error);
+      toast.error("Erro ao verificar seu perfil. Por favor, faça logout e login novamente.");
       throw error;
     } finally {
       setLoading(false);
