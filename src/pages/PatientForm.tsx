@@ -16,11 +16,12 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import ImageUpload from '@/components/patients/ImageUpload';
 import { supabase } from '@/integrations/supabase/client';
+import { useProfile } from '@/hooks/useProfile';
 
 const PatientForm = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [clinicId, setClinicId] = useState<string | null>(null);
+  const { clinicId, loading: profileLoading } = useProfile(user?.id);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -32,35 +33,6 @@ const PatientForm = () => {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Buscar o clinic_id do usuário ao carregar o componente
-  useEffect(() => {
-    const fetchUserClinicId = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('clinic_id')
-          .eq('id', user.id)
-          .maybeSingle();
-          
-        if (error) {
-          console.error('Erro ao buscar clinic_id do usuário:', error);
-          return;
-        }
-        
-        if (data && data.clinic_id) {
-          console.log('clinic_id recuperado:', data.clinic_id);
-          setClinicId(data.clinic_id);
-        }
-      } catch (error) {
-        console.error('Erro ao buscar clinic_id:', error);
-      }
-    };
-    
-    fetchUserClinicId();
-  }, [user]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -131,6 +103,7 @@ const PatientForm = () => {
     }
     
     if (!clinicId) {
+      console.error("Não foi possível identificar a clínica. clinicId:", clinicId);
       toast.error("Não foi possível identificar a clínica. Por favor, tente novamente ou contate o suporte.");
       setIsLoading(false);
       return;
@@ -148,6 +121,7 @@ const PatientForm = () => {
         }
       }
       
+      console.log('Salvando paciente com clínica ID:', clinicId);
       console.log('Salvando paciente com imagem URL:', imageUrl);
       
       // Save patient data to Supabase
@@ -159,7 +133,7 @@ const PatientForm = () => {
           gender: formData.gender,
           cpf: formData.cpf,
           image_url: imageUrl,
-          clinic_id: clinicId, // Usar o clinic_id recuperado do perfil
+          clinic_id: clinicId,
           user_id: user?.id
         }])
         .select();
@@ -303,16 +277,16 @@ const PatientForm = () => {
             type="button" 
             variant="outline" 
             onClick={() => navigate('/pacientes')}
-            disabled={isLoading}
+            disabled={isLoading || profileLoading}
           >
             Cancelar
           </Button>
           <Button 
             type="submit" 
             className="btn-primary"
-            disabled={isLoading}
+            disabled={isLoading || profileLoading || !clinicId}
           >
-            {isLoading ? 'Salvando...' : 'Salvar Paciente'}
+            {isLoading ? 'Salvando...' : (profileLoading ? 'Carregando perfil...' : 'Salvar Paciente')}
           </Button>
         </div>
       </form>

@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export const useProfile = (userId: string | undefined) => {
   const [loading, setLoading] = useState<boolean>(false);
+  const [clinicId, setClinicId] = useState<string | null>(null);
   
   // Função para buscar o perfil do usuário
   const fetchUserProfile = async (userId: string | undefined) => {
@@ -31,16 +32,19 @@ export const useProfile = (userId: string | undefined) => {
           console.log('Perfil não encontrado, tentando criar...');
           return await createUserProfile(userId);
         }
+        throw error;
       } else if (!data) {
         console.log('Perfil não encontrado, criando novo perfil...');
         // Se não há erro mas também não há dados, criamos o perfil
         return await createUserProfile(userId);
       } else {
         console.log("Perfil do usuário encontrado:", data);
+        setClinicId(data.clinic_id);
         return data;
       }
     } catch (error) {
       console.error("Erro ao buscar perfil:", error);
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -126,6 +130,7 @@ export const useProfile = (userId: string | undefined) => {
             throw getProfileError;
           }
           
+          setClinicId(profile.clinic_id);
           return profile;
         }
         
@@ -147,6 +152,7 @@ export const useProfile = (userId: string | undefined) => {
         }
         
         console.log("Perfil do usuário criado com sucesso:", newProfile);
+        setClinicId(clinicId);
         return newProfile;
       }
       
@@ -154,7 +160,7 @@ export const useProfile = (userId: string | undefined) => {
     } catch (error) {
       console.error("Erro ao criar perfil do usuário:", error);
       toast.error("Erro ao configurar seu perfil. Por favor, tente novamente.");
-      return null;
+      throw error;
     }
   };
   
@@ -168,6 +174,7 @@ export const useProfile = (userId: string | undefined) => {
   return {
     fetchUserProfile,
     createUserProfile,
-    loading
+    loading,
+    clinicId
   };
 };
