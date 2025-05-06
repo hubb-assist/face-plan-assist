@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -104,34 +103,20 @@ const PatientDetail = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="data" className="space-y-6">
+      <Tabs defaultValue="dados" className="space-y-6">
         <TabsList className="w-full justify-start">
-          <TabsTrigger value="data">Dados</TabsTrigger>
+          <TabsTrigger value="dados">Dados</TabsTrigger>
           <TabsTrigger value="anam">Anamnese</TabsTrigger>
-          <TabsTrigger value="photos">Fotos clínicas</TabsTrigger>
+          <TabsTrigger value="fotos">Fotos clínicas</TabsTrigger>
           <TabsTrigger value="xrays">Radiografias</TabsTrigger>
           <TabsTrigger value="docs">Documentos</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="data" className="space-y-6">
-          <PatientDataTab patient={patient} />
-        </TabsContent>
-        
-        <TabsContent value="anam" className="space-y-6">
-          <AnamnesisTab patientId={id || ''} />
-        </TabsContent>
-        
-        <TabsContent value="photos" className="space-y-6">
-          <ClinicalPhotosTab patientId={id || ''} />
-        </TabsContent>
-        
-        <TabsContent value="xrays" className="space-y-6">
-          <XrayTab patientId={id || ''} />
-        </TabsContent>
-        
-        <TabsContent value="docs" className="space-y-6">
-          <DocsTab patientId={id || ''} />
-        </TabsContent>
+        <TabsContent value="dados"><PatientDataTab patient={patient} /></TabsContent>
+        <TabsContent value="anam"><AnamnesisTab patientId={id || ''} /></TabsContent>
+        <TabsContent value="fotos"><ClinicalPhotosTab patientId={id || ''} /></TabsContent>
+        <TabsContent value="xrays"><XrayTab patientId={id || ''} /></TabsContent>
+        <TabsContent value="docs"><DocsTab patientId={id || ''} /></TabsContent>
       </Tabs>
     </div>
   );
