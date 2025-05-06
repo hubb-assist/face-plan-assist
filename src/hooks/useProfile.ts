@@ -19,7 +19,6 @@ export const useProfile = (userId: string | undefined) => {
       setLoading(true);
       
       // Usando a função RPC que evita a recursão infinita
-      // Esta função é SECURITY DEFINER que evita problemas de recursão RLS
       const { data: clinic, error: clinicError } = await supabase
         .rpc('get_user_clinic_id');
       
@@ -32,24 +31,22 @@ export const useProfile = (userId: string | undefined) => {
         console.log("ID da clínica encontrado:", clinic);
         setClinicId(clinic);
         
-        // Usar a função de segurança definer para buscar o perfil
+        // Buscar o perfil do usuário diretamente usando o ID da clínica
         const { data, error } = await supabase
-          .rpc('get_current_user_profile');
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
         
         if (error) {
           console.error("Erro ao buscar perfil do usuário:", error);
           throw error;
         }
         
-        // A função retorna um array, então pegamos o primeiro item
-        const profileData = Array.isArray(data) && data.length > 0 ? data[0] : data;
-        
-        console.log("Perfil do usuário completo:", profileData);
-        return profileData;
+        console.log("Perfil do usuário completo:", data);
+        return data;
       } else {
         console.log("ID da clínica não encontrado para o usuário:", userId);
-        
-        // Se não encontrou o clinic_id via RPC, tenta criar um perfil
         return await createUserProfile(userId);
       }
     } catch (error) {
