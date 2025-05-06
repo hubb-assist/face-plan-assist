@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -204,15 +203,23 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
       const { error: uploadError, data } = await supabase.storage
         .from('patient_images')
         .upload(filePath, file, {
-          onUploadProgress: (event) => {
-            const progress = (event.loaded / event.total) * 100;
-            setUploadProgress(progress);
+          upsert: false,
+          onUploadProgress: (evt) => {
+            if (evt?.total) {  // Garante que total > 0
+              const pct = Math.round((evt.loaded / evt.total) * 100);
+              setUploadProgress(pct);
+            }
           }
         });
         
       if (uploadError) {
         console.error('Erro durante upload:', uploadError);
         throw uploadError;
+      }
+      
+      // Fallback para arquivos pequenos
+      if (!uploadError) {
+        setUploadProgress(100);
       }
       
       console.log('Upload concluído com sucesso:', data);

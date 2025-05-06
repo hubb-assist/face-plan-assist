@@ -113,8 +113,17 @@ const ImageUpload = ({
       {isUploading && (
         <div className="mt-2 w-full max-w-[250px]">
           <div className="flex items-center gap-2 mb-1">
-            <Spinner size="sm" />
-            <span className="text-sm">Enviando... {uploadProgress.toFixed(0)}%</span>
+            {uploadProgress === 0 ? (
+              <>
+                <Spinner size="sm" />
+                <span className="text-sm">Preparando upload...</span>
+              </>
+            ) : (
+              <>
+                <Spinner size="sm" />
+                <span className="text-sm">Enviando... {uploadProgress.toFixed(0)}%</span>
+              </>
+            )}
           </div>
           <Progress value={uploadProgress} className="h-2 max-w-[60px] sm:max-w-full" />
         </div>
