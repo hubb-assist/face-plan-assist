@@ -25,42 +25,45 @@ const PatientsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const { user, session } = useAuth();
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      if (!user) {
-        console.log('Nenhum usuário autenticado, não é possível buscar pacientes');
-        setLoading(false);
-        return;
+  const fetchPatients = async () => {
+    if (!user) {
+      console.log('Nenhum usuário autenticado, não é possível buscar pacientes');
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      console.log('Buscando pacientes para o usuário:', user.id);
+      
+      const { data, error } = await supabase
+        .from('patients')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+      if (error) {
+        console.error('Erro ao buscar pacientes:', error);
+        throw error;
       }
       
-      try {
-        setLoading(true);
-        console.log('Buscando pacientes para o usuário:', user.id);
-        
-        // Não precisamos mais buscar o perfil primeiro, 
-        // já que a política RLS usa a função get_clinic_id() para filtrar os pacientes
-        const { data, error } = await supabase
-          .from('patients')
-          .select('*')
-          .order('created_at', { ascending: false });
-          
-        if (error) {
-          console.error('Erro ao buscar pacientes:', error);
-          throw error;
-        }
-        
-        console.log('Pacientes encontrados:', data?.length || 0);
-        setPatients(data || []);
-      } catch (error: any) {
-        console.error('Erro ao buscar pacientes:', error);
-        toast.error(`Erro ao carregar pacientes: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
+      console.log('Pacientes encontrados:', data?.length || 0);
+      setPatients(data || []);
+    } catch (error: any) {
+      console.error('Erro ao buscar pacientes:', error);
+      toast.error(`Erro ao carregar pacientes: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchPatients();
   }, [user, session]);
+
+  const handleDeletePatient = (id: string) => {
+    // Atualizar o estado local sem precisar fazer outra consulta ao banco
+    setPatients(prevPatients => prevPatients.filter(p => p.id !== id));
+  };
 
   const filteredPatients = patients.filter(patient => 
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -107,7 +110,8 @@ const PatientsList = () => {
                 cpf: patient.cpf,
                 imageUrl: patient.image_url,
                 createdAt: new Date(patient.created_at)
-              }} 
+              }}
+              onDelete={handleDeletePatient}
             />
           ))}
         </div>

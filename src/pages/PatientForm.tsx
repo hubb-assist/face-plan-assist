@@ -14,9 +14,22 @@ import { useAuth } from '@/contexts/AuthContext';
 import ImageUpload from '@/components/patients/ImageUpload';
 import { supabase } from '@/integrations/supabase/client';
 
-const PatientForm = () => {
+interface PatientFormProps {
+  patient?: {
+    id: string;
+    name: string;
+    birth_date: string;
+    gender: string;
+    cpf: string;
+    image_url?: string;
+  };
+  onSuccess?: () => void;
+}
+
+const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isEdit = !!patient?.id;
   
   const [formData, setFormData] = useState({
     name: '',
@@ -28,6 +41,22 @@ const PatientForm = () => {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Carregar dados para edição, se for o caso
+  useEffect(() => {
+    if (patient) {
+      setFormData({
+        name: patient.name,
+        birthDate: patient.birth_date ? new Date(patient.birth_date) : null,
+        gender: patient.gender,
+        cpf: patient.cpf,
+      });
+      
+      if (patient.image_url) {
+        setImagePreview(patient.image_url);
+      }
+    }
+  }, [patient]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -113,30 +142,60 @@ const PatientForm = () => {
         }
       }
       
-      // Agora o clinic_id tem um valor padrão no banco de dados (get_clinic_id())
-      // Não precisamos enviar clinic_id manualmente
-      const { data, error } = await supabase
-        .from('patients')
-        .insert([{
-          name: formData.name,
-          birth_date: formData.birthDate?.toISOString().split('T')[0],
-          gender: formData.gender,
-          cpf: formData.cpf,
-          image_url: imageUrl,
-          user_id: user?.id
-        }])
-        .select();
+      const body = {
+        name: formData.name,
+        birth_date: formData.birthDate?.toISOString().split('T')[0],
+        gender: formData.gender,
+        cpf: formData.cpf,
+        user_id: user?.id,
+      };
+      
+      // Adicionar a URL da imagem apenas se tiver uma nova
+      if (imageUrl) {
+        body['image_url'] = imageUrl;
+      }
+      
+      let error;
+      
+      if (isEdit) {
+        // Atualizar paciente existente
+        const { error: updateError } = await supabase
+          .from('patients')
+          .update(body)
+          .eq('id', patient.id);
+          
+        error = updateError;
+        
+        if (!error) {
+          toast.success("Paciente atualizado com sucesso!");
+        }
+      } else {
+        // Inserir novo paciente
+        const { error: insertError } = await supabase
+          .from('patients')
+          .insert([body])
+          .select();
+          
+        error = insertError;
+        
+        if (!error) {
+          toast.success("Paciente cadastrado com sucesso!");
+        }
+      }
       
       if (error) {
-        console.error('Erro ao inserir paciente:', error);
+        console.error('Erro ao salvar paciente:', error);
         throw error;
       }
       
-      toast.success("Paciente cadastrado com sucesso!");
-      navigate("/pacientes");
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        navigate("/pacientes");
+      }
     } catch (error: any) {
       console.error("Error saving patient:", error);
-      toast.error(`Erro ao cadastrar paciente: ${error.message || 'Verifique se todos os campos estão preenchidos corretamente'}`);
+      toast.error(`Erro ao ${isEdit ? 'atualizar' : 'cadastrar'} paciente: ${error.message || 'Verifique se todos os campos estão preenchidos corretamente'}`);
     } finally {
       setIsLoading(false);
     }
@@ -156,12 +215,13 @@ const PatientForm = () => {
     }
   };
 
-  // Não precisamos mais verificar o clinicId
   const isFormDisabled = isLoading;
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-hubAssist-primary">Cadastrar Novo Paciente</h2>
+      <h2 className="text-3xl font-bold text-hubAssist-primary">
+        {isEdit ? 'Editar Paciente' : 'Cadastrar Novo Paciente'}
+      </h2>
       
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -272,7 +332,7 @@ const PatientForm = () => {
             className="btn-primary"
             disabled={isFormDisabled}
           >
-            {isLoading ? 'Salvando...' : 'Salvar Paciente'}
+            {isLoading ? 'Salvando...' : (isEdit ? 'Atualizar Paciente' : 'Salvar Paciente')}
           </Button>
         </div>
       </form>

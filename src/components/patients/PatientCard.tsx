@@ -1,11 +1,13 @@
 
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { format, differenceInYears } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Image } from 'lucide-react';
+import { Image, Pencil, Trash2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface Patient {
   id: string;
@@ -18,10 +20,56 @@ interface Patient {
 
 interface PatientCardProps {
   patient: Patient;
+  onDelete?: (id: string) => void;
 }
 
-const PatientCard = ({ patient }: PatientCardProps) => {
+const PatientCard = ({ patient, onDelete }: PatientCardProps) => {
+  const navigate = useNavigate();
+  const [isDeleting, setIsDeleting] = useState(false);
   const age = differenceInYears(new Date(), patient.birthDate);
+  
+  const handleDelete = async () => {
+    if (!window.confirm('Tem certeza que deseja excluir este paciente?')) {
+      return;
+    }
+    
+    try {
+      setIsDeleting(true);
+      
+      // Deletar o paciente no banco de dados
+      const { error } = await supabase
+        .from('patients')
+        .delete()
+        .eq('id', patient.id);
+        
+      if (error) {
+        throw error;
+      }
+      
+      // Se tiver uma imagem, remover do storage também
+      if (patient.imageUrl) {
+        // Extrai o caminho da imagem da URL completa
+        const imagePath = patient.imageUrl.split('/patient_images/')[1];
+        if (imagePath) {
+          await supabase.storage
+            .from('patient_images')
+            .remove([imagePath]);
+        }
+      }
+      
+      toast.success('Paciente excluído com sucesso');
+      
+      // Notificar o componente pai para atualizar a lista
+      if (onDelete) {
+        onDelete(patient.id);
+      }
+    } catch (error: any) {
+      console.error('Erro ao excluir paciente:', error);
+      toast.error(`Erro ao excluir paciente: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   
   return (
     <Card className="overflow-hidden patient-card">
@@ -45,7 +93,24 @@ const PatientCard = ({ patient }: PatientCardProps) => {
           <p>Cadastrado em {format(patient.createdAt, "dd/MM/yyyy", { locale: ptBR })}</p>
         </div>
       </CardContent>
-      <CardFooter className="p-4 pt-0">
+      <CardFooter className="p-4 pt-0 flex-col gap-2">
+        <div className="flex gap-2 w-full">
+          <Button 
+            variant="outline" 
+            className="flex-1"
+            onClick={() => navigate(`/pacientes/${patient.id}/edit`)}
+          >
+            <Pencil className="h-4 w-4 mr-1" /> Editar
+          </Button>
+          <Button 
+            variant="destructive" 
+            className="flex-1"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            <Trash2 className="h-4 w-4 mr-1" /> Excluir
+          </Button>
+        </div>
         <Link to={`/pacientes/${patient.id}/planejamento`} className="w-full">
           <Button className="w-full btn-primary">
             Iniciar Planejamento

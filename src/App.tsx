@@ -14,6 +14,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import PatientsList from "./pages/PatientsList";
 import PatientForm from "./pages/PatientForm";
+import EditPatient from "./pages/EditPatient";
 import PatientPlanning from "./pages/PatientPlanning";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound";
@@ -39,6 +40,7 @@ const App = () => (
               {/* Patient routes */}
               <Route path="/pacientes" element={<PatientsList />} />
               <Route path="/pacientes/novo" element={<PatientForm />} />
+              <Route path="/pacientes/:id/edit" element={<EditPatient />} />
               <Route path="/pacientes/:id/planejamento" element={<PatientPlanning />} />
               
               {/* Placeholder routes */}
