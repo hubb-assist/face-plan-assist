@@ -1,6 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useParams, useNavigate, Link, Routes, Route, Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +20,7 @@ const PatientDetail = () => {
   const navigate = useNavigate();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('dados');
 
   useEffect(() => {
     if (id) {
@@ -73,6 +74,24 @@ const PatientDetail = () => {
     );
   }
 
+  // Função para renderizar o conteúdo ativo
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 'dados':
+        return <PatientDataTab patient={patient} />;
+      case 'anam':
+        return <AnamnesisTab patientId={id || ''} />;
+      case 'fotos':
+        return <ClinicalPhotosTab patientId={id || ''} />;
+      case 'xrays':
+        return <XrayTab patientId={id || ''} />;
+      case 'docs':
+        return <DocsTab patientId={id || ''} />;
+      default:
+        return <PatientDataTab patient={patient} />;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -103,21 +122,44 @@ const PatientDetail = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="dados" className="space-y-6">
-        <TabsList className="w-full justify-start">
-          <TabsTrigger value="dados">Dados</TabsTrigger>
-          <TabsTrigger value="anam">Anamnese</TabsTrigger>
-          <TabsTrigger value="fotos">Fotos clínicas</TabsTrigger>
-          <TabsTrigger value="xrays">Radiografias</TabsTrigger>
-          <TabsTrigger value="docs">Documentos</TabsTrigger>
-        </TabsList>
+      <div className="space-y-6">
+        <div className="flex border-b overflow-x-auto">
+          <button 
+            className={`px-4 py-2 border-b-2 ${activeTab === 'dados' ? 'border-blue-500 text-blue-500' : 'border-transparent'}`}
+            onClick={() => setActiveTab('dados')}
+          >
+            Dados
+          </button>
+          <button 
+            className={`px-4 py-2 border-b-2 ${activeTab === 'anam' ? 'border-blue-500 text-blue-500' : 'border-transparent'}`}
+            onClick={() => setActiveTab('anam')}
+          >
+            Anamnese
+          </button>
+          <button 
+            className={`px-4 py-2 border-b-2 ${activeTab === 'fotos' ? 'border-blue-500 text-blue-500' : 'border-transparent'}`}
+            onClick={() => setActiveTab('fotos')}
+          >
+            Fotos clínicas
+          </button>
+          <button 
+            className={`px-4 py-2 border-b-2 ${activeTab === 'xrays' ? 'border-blue-500 text-blue-500' : 'border-transparent'}`}
+            onClick={() => setActiveTab('xrays')}
+          >
+            Radiografias
+          </button>
+          <button 
+            className={`px-4 py-2 border-b-2 ${activeTab === 'docs' ? 'border-blue-500 text-blue-500' : 'border-transparent'}`}
+            onClick={() => setActiveTab('docs')}
+          >
+            Documentos
+          </button>
+        </div>
 
-        <TabsContent value="dados"><PatientDataTab patient={patient} /></TabsContent>
-        <TabsContent value="anam"><AnamnesisTab patientId={id || ''} /></TabsContent>
-        <TabsContent value="fotos"><ClinicalPhotosTab patientId={id || ''} /></TabsContent>
-        <TabsContent value="xrays"><XrayTab patientId={id || ''} /></TabsContent>
-        <TabsContent value="docs"><DocsTab patientId={id || ''} /></TabsContent>
-      </Tabs>
+        <div className="py-4">
+          {renderActiveTab()}
+        </div>
+      </div>
     </div>
   );
 };
