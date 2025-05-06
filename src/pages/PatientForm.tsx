@@ -137,7 +137,16 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps) => {
       
       // Dados do paciente para insert/update
       const patientData = {
-        ...values,
+        name: values.name,
+        cpf: values.cpf,
+        gender: values.gender,
+        birth_date: values.birth_date,
+        cep: values.cep,
+        street: values.street,
+        number: values.number,
+        district: values.district,
+        city: values.city,
+        state: values.state,
         image_url: imageUrl,
         clinic_id: clinicId,
         user_id: user.id
@@ -243,7 +252,7 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps) => {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">
+      <h1 className="text-2xl font-bold mb-6 text-red-500">
         {patient?.id ? 'Editar Paciente' : 'Novo Paciente'}
       </h1>
       
