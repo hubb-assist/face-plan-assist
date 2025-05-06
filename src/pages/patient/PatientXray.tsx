@@ -7,11 +7,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
 import { Patient } from '@/types/patient';
+import XrayTab from '@/components/patients/tabs/Radiografias';
 
-// Importar componente de dados do paciente (outras serão em páginas separadas)
-import PatientDataTab from '@/components/patients/tabs/Data';
-
-const PatientDetail = () => {
+const PatientXray = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [patient, setPatient] = useState<Patient | null>(null);
@@ -81,7 +79,7 @@ const PatientDetail = () => {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Voltar
           </Button>
-          <h1 className="text-2xl font-bold">{patient.name}</h1>
+          <h1 className="text-2xl font-bold">{patient.name} - Radiografias</h1>
         </div>
         <div className="flex gap-2">
           <Button 
@@ -104,7 +102,7 @@ const PatientDetail = () => {
         <div className="flex overflow-x-auto border-b">
           <Link
             to={`/pacientes/${id}`}
-            className="px-4 py-2 border-b-2 border-primary text-primary font-medium"
+            className="px-4 py-2 border-b-2 border-transparent hover:text-gray-700"
           >
             Dados
           </Link>
@@ -122,7 +120,7 @@ const PatientDetail = () => {
           </Link>
           <Link
             to={`/pacientes/${id}/radiografias`}
-            className="px-4 py-2 border-b-2 border-transparent hover:text-gray-700"
+            className="px-4 py-2 border-b-2 border-primary text-primary font-medium"
           >
             Radiografias
           </Link>
@@ -134,13 +132,13 @@ const PatientDetail = () => {
           </Link>
         </div>
 
-        {/* Conteúdo principal - apenas dados do paciente */}
+        {/* Conteúdo de radiografias */}
         <div className="py-4">
-          <PatientDataTab patient={patient} />
+          <XrayTab patientId={id || ''} />
         </div>
       </div>
     </div>
   );
 };
 
-export default PatientDetail;
+export default PatientXray;

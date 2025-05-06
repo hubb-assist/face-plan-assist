@@ -19,6 +19,12 @@ import PatientDetail from "./pages/PatientDetail";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound";
 
+// Páginas separadas para detalhes do paciente
+import PatientAnamnesis from "./pages/patient/PatientAnamnesis";
+import PatientPhotos from "./pages/patient/PatientPhotos";
+import PatientXray from "./pages/patient/PatientXray";
+import PatientDocuments from "./pages/patient/PatientDocuments";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -41,6 +47,12 @@ const App = () => (
           <Route path="/pacientes/:id" element={<PatientDetail />} />
           <Route path="/pacientes/:id/edit" element={<EditPatient />} />
           <Route path="/pacientes/:id/planejamento" element={<PatientPlanning />} />
+          
+          {/* Novas rotas de páginas de pacientes */}
+          <Route path="/pacientes/:id/anamnese" element={<PatientAnamnesis />} />
+          <Route path="/pacientes/:id/fotos" element={<PatientPhotos />} />
+          <Route path="/pacientes/:id/radiografias" element={<PatientXray />} />
+          <Route path="/pacientes/:id/documentos" element={<PatientDocuments />} />
           
           {/* Placeholder routes */}
           <Route path="/agendamentos" element={
