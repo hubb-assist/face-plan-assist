@@ -9,28 +9,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import DatePicker from 'react-datepicker';
 import { ptBR } from 'date-fns/locale';
+import { isValid, isAfter, parse } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import ImageUpload from '@/components/patients/ImageUpload';
 import { supabase } from '@/integrations/supabase/client';
+import InputMask from 'react-input-mask';
+import 'react-datepicker/dist/react-datepicker.css';
 
-// Componente de input personalizado para o DatePicker que não é readOnly
-const CustomInput = forwardRef<
-  HTMLInputElement,
-  React.InputHTMLAttributes<HTMLInputElement>
->(({ value, onClick, onChange, placeholder, disabled, className }, ref) => (
-  <Input
-    value={value as string}
-    onClick={onClick}
-    onChange={onChange}
-    placeholder={placeholder}
-    disabled={disabled}
-    className={className}
+// Componente de input com máscara para o DatePicker
+const MaskedInput = forwardRef<HTMLInputElement, any>((props, ref) => (
+  <InputMask
+    {...props}
+    mask="99/99/9999"
+    placeholder="DD/MM/AAAA"
+    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
     ref={ref}
-    readOnly={false}
   />
 ));
-CustomInput.displayName = 'CustomInput';
+MaskedInput.displayName = 'MaskedInput';
 
 interface PatientFormProps {
   patient?: {
@@ -59,6 +56,7 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const maxDate = new Date();
   
   // Carregar dados para edição, se for o caso
   useEffect(() => {
@@ -101,8 +99,20 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleBirthDateChange = (date: Date | null) => {
-    setFormData({ ...formData, birthDate: date });
+  const handleBirthDateChange = (date: Date | null, e: React.SyntheticEvent<any>) => {
+    // Se veio string digitada manualmente
+    if (typeof (e as any).target?.value === 'string') {
+      const str = (e as any).target.value; // dd/MM/yyyy
+      const parsed = parse(str, 'dd/MM/yyyy', new Date());
+
+      if (!isValid(parsed) || isAfter(parsed, maxDate)) {
+        // Ignora entradas inválidas
+        return;
+      }
+      setFormData({ ...formData, birthDate: parsed });
+    } else {
+      setFormData({ ...formData, birthDate: date });
+    }
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -144,6 +154,13 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
     // Validação dos campos
     if (!formData.name || !formData.birthDate || !formData.gender || !formData.cpf) {
       toast.error("Por favor, preencha todos os campos obrigatórios");
+      setIsLoading(false);
+      return;
+    }
+    
+    // Validação específica da data de nascimento
+    if (isAfter(formData.birthDate, new Date())) {
+      toast.error("Data de nascimento inválida");
       setIsLoading(false);
       return;
     }
@@ -269,19 +286,16 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
                         onChange={handleBirthDateChange}
                         locale={ptBR}
                         dateFormat="dd/MM/yyyy"
-                        maxDate={new Date()}
+                        maxDate={maxDate}
                         showMonthDropdown
                         showYearDropdown
                         dropdownMode="select"
                         scrollableYearDropdown
                         yearDropdownItemNumber={120}
                         placeholderText="DD/MM/AAAA"
-                        className={cn(
-                          "w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-                        )}
-                        customInput={<CustomInput />}
+                        customInput={<MaskedInput />}
                         disabled={isFormDisabled}
-                        popperClassName="z-50 pointer-events-auto"
+                        popperClassName="z-50"
                         popperModifiers={[
                           {
                             name: "offset",
