@@ -41,15 +41,12 @@ const Sidebar = () => {
     >
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <img 
-            src="https://sq360.com.br/logo-hubb-novo/logo_hubb_assisit.png" 
-            alt="Hubb Assist" 
-            className="h-10 w-auto" 
-          />
           {expanded && (
-            <span className="text-white font-medium whitespace-nowrap transition-opacity duration-300">
-              Hubb Assist
-            </span>
+            <img 
+              src="https://sq360.com.br/logo-hubb-novo/logo_hubb_assisit.png" 
+              alt="Hubb Assist" 
+              className="h-10 w-auto" 
+            />
           )}
         </div>
         <button onClick={toggleSidebar} className="text-white hover:text-sidebar-primary">
