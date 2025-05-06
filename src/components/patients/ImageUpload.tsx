@@ -6,7 +6,7 @@ import { Upload, Image } from 'lucide-react';
 interface ImageUploadProps {
   imagePreview: string | null;
   onImageChange: (file: File | null) => void;
-  disabled?: boolean; // Adicionando a propriedade disabled como opcional
+  disabled?: boolean;
 }
 
 const ImageUpload = ({ imagePreview, onImageChange, disabled = false }: ImageUploadProps) => {

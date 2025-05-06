@@ -19,6 +19,7 @@ export const useProfile = (userId: string | undefined) => {
       setLoading(true);
       
       // Usando a função RPC que evita a recursão infinita
+      // Esta função é SECURITY DEFINER que evita problemas de recursão RLS
       const { data: clinic, error: clinicError } = await supabase
         .rpc('get_user_clinic_id');
       
@@ -31,41 +32,25 @@ export const useProfile = (userId: string | undefined) => {
         console.log("ID da clínica encontrado:", clinic);
         setClinicId(clinic);
         
-        // Agora busca o perfil através da função de segurança definer
+        // Usar a função de segurança definer para buscar o perfil
         const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
+          .rpc('get_current_user_profile');
         
         if (error) {
           console.error("Erro ao buscar perfil do usuário:", error);
           throw error;
         }
         
-        console.log("Perfil do usuário completo:", data);
-        return data;
+        // A função retorna um array, então pegamos o primeiro item
+        const profileData = Array.isArray(data) && data.length > 0 ? data[0] : data;
+        
+        console.log("Perfil do usuário completo:", profileData);
+        return profileData;
       } else {
         console.log("ID da clínica não encontrado para o usuário:", userId);
         
-        // Verificar se o perfil existe
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
-        
-        if (error && error.code === 'PGRST116') {
-          // Perfil não encontrado, criar um novo
-          return await createUserProfile(userId);
-        } else if (data) {
-          // Perfil encontrado, mas sem clinic_id?
-          setClinicId(data.clinic_id);
-          return data;
-        } else {
-          // Criar perfil
-          return await createUserProfile(userId);
-        }
+        // Se não encontrou o clinic_id via RPC, tenta criar um perfil
+        return await createUserProfile(userId);
       }
     } catch (error) {
       console.error("Erro ao buscar perfil:", error);
