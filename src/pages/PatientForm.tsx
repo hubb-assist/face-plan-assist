@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -192,12 +191,14 @@ const PatientForm = () => {
                         locale={ptBR}
                         dateFormat="dd/MM/yyyy"
                         maxDate={new Date()}
+                        showMonthDropdown
                         showYearDropdown
+                        dropdownMode="select"
                         scrollableYearDropdown
                         yearDropdownItemNumber={120}
                         placeholderText="Selecione a data"
                         className={cn(
-                          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm pointer-events-auto"
                         )}
                         disabled={isFormDisabled}
                       />
