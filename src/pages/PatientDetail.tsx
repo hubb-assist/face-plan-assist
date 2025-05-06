@@ -7,7 +7,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
 import { Patient } from '@/types/patient';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Importar componentes das abas
 import PatientDataTab from '@/components/patients/tabs/Data';
@@ -21,6 +20,7 @@ const PatientDetail = () => {
   const navigate = useNavigate();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState('dados');
 
   useEffect(() => {
     if (id) {
@@ -74,6 +74,24 @@ const PatientDetail = () => {
     );
   }
 
+  // Função para renderizar o conteúdo ativo
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'dados':
+        return <PatientDataTab patient={patient} />;
+      case 'anam':
+        return <AnamnesisTab patientId={id || ''} />;
+      case 'fotos':
+        return <ClinicalPhotosTab patientId={id || ''} />;
+      case 'xrays':
+        return <XrayTab patientId={id || ''} />;
+      case 'docs':
+        return <DocsTab patientId={id || ''} />;
+      default:
+        return <PatientDataTab patient={patient} />;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -104,30 +122,66 @@ const PatientDetail = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="dados" className="w-full">
-        <TabsList className="w-full mb-4 overflow-x-auto flex">
-          <TabsTrigger value="dados">Dados</TabsTrigger>
-          <TabsTrigger value="anam">Anamnese</TabsTrigger>
-          <TabsTrigger value="fotos">Fotos clínicas</TabsTrigger>
-          <TabsTrigger value="xrays">Radiografias</TabsTrigger>
-          <TabsTrigger value="docs">Documentos</TabsTrigger>
-        </TabsList>
-        <TabsContent value="dados">
-          <PatientDataTab patient={patient} />
-        </TabsContent>
-        <TabsContent value="anam">
-          <AnamnesisTab patientId={id || ''} />
-        </TabsContent>
-        <TabsContent value="fotos">
-          <ClinicalPhotosTab patientId={id || ''} />
-        </TabsContent>
-        <TabsContent value="xrays">
-          <XrayTab patientId={id || ''} />
-        </TabsContent>
-        <TabsContent value="docs">
-          <DocsTab patientId={id || ''} />
-        </TabsContent>
-      </Tabs>
+      <div className="space-y-6">
+        {/* Navegação de seções - estilizado para parecer com abas */}
+        <div className="flex overflow-x-auto border-b">
+          <button
+            onClick={() => setActiveSection('dados')}
+            className={`px-4 py-2 border-b-2 transition-colors ${
+              activeSection === 'dados' 
+                ? 'border-primary text-primary font-medium'
+                : 'border-transparent hover:text-gray-700'
+            }`}
+          >
+            Dados
+          </button>
+          <button
+            onClick={() => setActiveSection('anam')}
+            className={`px-4 py-2 border-b-2 transition-colors ${
+              activeSection === 'anam' 
+                ? 'border-primary text-primary font-medium'
+                : 'border-transparent hover:text-gray-700'
+            }`}
+          >
+            Anamnese
+          </button>
+          <button
+            onClick={() => setActiveSection('fotos')}
+            className={`px-4 py-2 border-b-2 transition-colors ${
+              activeSection === 'fotos' 
+                ? 'border-primary text-primary font-medium'
+                : 'border-transparent hover:text-gray-700'
+            }`}
+          >
+            Fotos clínicas
+          </button>
+          <button
+            onClick={() => setActiveSection('xrays')}
+            className={`px-4 py-2 border-b-2 transition-colors ${
+              activeSection === 'xrays' 
+                ? 'border-primary text-primary font-medium'
+                : 'border-transparent hover:text-gray-700'
+            }`}
+          >
+            Radiografias
+          </button>
+          <button
+            onClick={() => setActiveSection('docs')}
+            className={`px-4 py-2 border-b-2 transition-colors ${
+              activeSection === 'docs' 
+                ? 'border-primary text-primary font-medium'
+                : 'border-transparent hover:text-gray-700'
+            }`}
+          >
+            Documentos
+          </button>
+        </div>
+
+        {/* Conteúdo da seção ativa */}
+        <div className="py-4">
+          {renderActiveSection()}
+        </div>
+      </div>
     </div>
   );
 };
