@@ -43,11 +43,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (event === 'SIGNED_IN') {
             toast.success("Login realizado com sucesso");
             // Buscamos o perfil do usuário após login para ter certeza que existe
-            setTimeout(() => {
-              if (newSession?.user?.id) {
+            if (newSession?.user?.id) {
+              setTimeout(() => {
                 fetchUserProfile(newSession.user.id);
-              }
-            }, 0);
+              }, 100);
+            }
           } else if (event === 'SIGNED_OUT') {
             toast.success("Logout realizado com sucesso");
           } else if (event === 'USER_UPDATED') {
@@ -65,7 +65,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (data.session?.user) {
         // Buscamos o perfil do usuário se já estiver autenticado
-        fetchUserProfile(data.session.user.id);
+        setTimeout(() => {
+          fetchUserProfile(data.session.user.id);
+        }, 100);
       }
       
       setLoading(false);

@@ -15,7 +15,7 @@ const Login = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
 
   // Verificar autenticação ao carregar a página
@@ -48,35 +48,12 @@ const Login = () => {
       console.log(`Tentando login com email: ${email}`);
       setLoading(true);
       
-      // Tente fazer login diretamente
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      // Usar o método signIn do AuthContext em vez de chamar diretamente o Supabase
+      await signIn(email, password);
       
-      if (error) {
-        console.error('Erro de login detalhado:', error);
-        
-        if (error.message.includes('Invalid login credentials')) {
-          toast.error('Email ou senha incorretos. Verifique suas credenciais.');
-        } else if (error.message.includes('Email not confirmed')) {
-          console.log('Email não confirmado, tentando fazer login direto...');
-          
-          // Força login mesmo com email não confirmado
-          toast.warning('Login realizado, mas o email não foi confirmado.');
-          setTimeout(() => navigate('/dashboard'), 500);
-        } else {
-          toast.error(`Erro ao fazer login: ${error.message}`);
-        }
-        throw error;
-      }
-      
-      console.log('Login bem-sucedido:', data);
-      toast.success('Login realizado com sucesso!');
-      navigate('/dashboard');
     } catch (error: any) {
       console.error('Erro completo no processo de login:', error);
-      // Toast de erro já exibido no bloco específico acima
+      // Toast de erro já exibido no AuthContext
     } finally {
       setLoading(false);
     }
@@ -107,7 +84,7 @@ const Login = () => {
         return;
       }
         
-      // Tente registrar o usuário com autoconfirmação ativada
+      // Registrar o usuário sem exigir confirmação de email
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -122,7 +99,6 @@ const Login = () => {
       if (error) {
         console.error('Erro de registro detalhado:', error);
         
-        // Informar sobre o erro rate limit com mensagem mais amigável
         if (error.message.includes('For security purposes, you can only request this after')) {
           toast.error('Por razões de segurança, aguarde alguns segundos antes de tentar novamente.');
         } else if (error.message.includes('already registered')) {
@@ -142,39 +118,20 @@ const Login = () => {
         return;
       }
       
-      // Usuário registrado com sucesso, tenta fazer login imediatamente
+      // Usuário registrado com sucesso, fazer login imediatamente
       if (data?.user) {
         toast.success('Registro realizado com sucesso!');
         
-        // Tentar fazer login automático após pequeno delay
+        // Fazer login automático após pequeno delay
         setTimeout(async () => {
           try {
-            const { error: loginError } = await supabase.auth.signInWithPassword({
-              email,
-              password
-            });
-            
-            if (!loginError) {
-              console.log('Login automático após registro bem-sucedido');
-              navigate('/dashboard');
-            } else {
-              console.log('Não foi possível fazer login automático após registro:', loginError);
-              
-              if (loginError.message.includes('Email not confirmed')) {
-                // Se o erro for de email não confirmado, tenta navegar mesmo assim
-                toast.warning('Registro realizado, mas o email não foi confirmado. Redirecionando...');
-                navigate('/dashboard');
-              } else {
-                toast.warning('Registro realizado! Por favor, faça login manualmente.');
-                setActiveTab('login');
-              }
-            }
+            await signIn(email, password);
           } catch (loginError: any) {
             console.error('Erro ao tentar login automático:', loginError);
             toast.warning('Registro realizado! Por favor, faça login manualmente.');
             setActiveTab('login');
           }
-        }, 1000); // Adicionei um delay para dar tempo ao Supabase
+        }, 800);
       }
     } catch (error: any) {
       console.error('Erro completo no processo de registro:', error);
