@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -141,11 +142,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         clinicId = existingClinic.id;
       } else {
         // Primeiro criamos uma clínica para o usuário
-        const { data: clinicData, error: clinicError } = await supabase
+        const { data: newClinic, error: clinicError } = await supabase
           .from('clinics')
-          .insert({
+          .insert([{
             name: `Clínica de ${user.email?.split('@')[0] || 'Novo Usuário'}`
-          })
+          }])
           .select('id')
           .single();
           
@@ -154,8 +155,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw clinicError;
         }
         
-        console.log("Clínica criada com sucesso:", clinicData);
-        clinicId = clinicData.id;
+        console.log("Clínica criada com sucesso:", newClinic);
+        clinicId = newClinic?.id;
       }
       
       if (clinicId) {
@@ -178,12 +179,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Depois criamos o perfil do usuário com a clínica
         const { error: profileError } = await supabase
           .from('profiles')
-          .insert({
+          .insert([{
             id: userId,
             email: user.email,
             role: 'admin_clinic',
             clinic_id: clinicId
-          });
+          }]);
           
         if (profileError) {
           console.error("Erro ao criar perfil:", profileError);

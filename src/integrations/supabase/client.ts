@@ -17,7 +17,6 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storageKey: 'hubb-assist-auth-storage',
     autoRefreshToken: true,
     flowType: 'pkce',
-    autoConfirmNewUsers: true, // Automatically confirm new users
     debug: true // Ativar logs de debug para autenticação
   }
 });

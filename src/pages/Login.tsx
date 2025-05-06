@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -94,7 +95,7 @@ const Login = () => {
       setLoading(true);
       
       // Verificar se o usuário já existe
-      const { data: userExists, error: checkError } = await supabase
+      const { data: userExists } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', email)

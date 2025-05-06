@@ -43,14 +43,14 @@ const PatientForm = () => {
           .from('profiles')
           .select('clinic_id')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
           
         if (error) {
           console.error('Erro ao buscar clinic_id do usuário:', error);
           return;
         }
         
-        if (data?.clinic_id) {
+        if (data && data.clinic_id) {
           console.log('clinic_id recuperado:', data.clinic_id);
           setClinicId(data.clinic_id);
         }
@@ -153,7 +153,7 @@ const PatientForm = () => {
       // Save patient data to Supabase
       const { data, error } = await supabase
         .from('patients')
-        .insert({
+        .insert([{
           name: formData.name,
           birth_date: formData.birthDate?.toISOString().split('T')[0],
           gender: formData.gender,
@@ -161,7 +161,7 @@ const PatientForm = () => {
           image_url: imageUrl,
           clinic_id: clinicId, // Usar o clinic_id recuperado do perfil
           user_id: user?.id
-        })
+        }])
         .select();
       
       if (error) {
