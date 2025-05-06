@@ -56,31 +56,6 @@ const PatientForm = () => {
     loadProfileData();
   }, [user, clinicId, fetchUserProfile]);
   
-  // Efeito para criar bucket de imagens se não existir
-  useEffect(() => {
-    const createBucketIfNotExists = async () => {
-      try {
-        // Verificar se o bucket existe
-        const { data: buckets } = await supabase.storage.listBuckets();
-        const bucketExists = buckets?.some(bucket => bucket.name === 'patient_images');
-        
-        if (!bucketExists) {
-          console.log('Criando bucket para imagens de pacientes');
-          await supabase.storage.createBucket('patient_images', {
-            public: true,
-            fileSizeLimit: 5 * 1024 * 1024 // 5MB
-          });
-          console.log('Bucket criado com sucesso');
-        }
-      } catch (error) {
-        console.error('Erro ao verificar/criar bucket:', error);
-        // Não interrompe o fluxo se falhar
-      }
-    };
-    
-    createBucketIfNotExists();
-  }, []);
-  
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     
