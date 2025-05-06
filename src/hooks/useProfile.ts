@@ -18,7 +18,7 @@ export const useProfile = (userId: string | undefined) => {
       console.log('Buscando perfil do usuário:', userId);
       setLoading(true);
       
-      // Usando a nova função RPC get_clinic_id() que evita a recursão infinita
+      // Usando a função get_clinic_id() que agora está configurada como SECURITY DEFINER
       const { data: clinic, error: clinicError } = await supabase
         .rpc('get_clinic_id');
       

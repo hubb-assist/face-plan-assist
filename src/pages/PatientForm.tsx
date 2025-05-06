@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,12 +16,10 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import ImageUpload from '@/components/patients/ImageUpload';
 import { supabase } from '@/integrations/supabase/client';
-import { useProfile } from '@/hooks/useProfile';
 
 const PatientForm = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { clinicId, loading: profileLoading, fetchUserProfile } = useProfile(user?.id);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -32,28 +31,6 @@ const PatientForm = () => {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  
-  // Efeito adicional para garantir que o clinicId esteja disponível
-  useEffect(() => {
-    const loadProfileData = async () => {
-      if (user?.id && !clinicId) {
-        setIsLoadingProfile(true);
-        try {
-          await fetchUserProfile(user.id);
-        } catch (error) {
-          console.error("Erro ao carregar dados do perfil:", error);
-          toast.error("Não foi possível carregar seus dados. Tente novamente.");
-        } finally {
-          setIsLoadingProfile(false);
-        }
-      } else {
-        setIsLoadingProfile(false);
-      }
-    };
-    
-    loadProfileData();
-  }, [user, clinicId, fetchUserProfile]);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -135,11 +112,8 @@ const PatientForm = () => {
         }
       }
       
-      console.log('Salvando paciente (clinic_id será usado automaticamente via default)');
-      console.log('Salvando paciente com imagem URL:', imageUrl);
-      
-      // Salvar dados do paciente no Supabase
-      // Não precisamos mais enviar clinic_id, pois ele tem um valor padrão agora
+      // Agora o clinic_id tem um valor padrão no banco de dados (get_clinic_id())
+      // Não precisamos enviar clinic_id manualmente
       const { data, error } = await supabase
         .from('patients')
         .insert([{
@@ -181,19 +155,12 @@ const PatientForm = () => {
     }
   };
 
-  // Simplificando a verificação - agora não nos preocupamos tanto com clinicId
-  // já que ele é configurado automaticamente no banco de dados
-  const isFormDisabled = isLoading || profileLoading || isLoadingProfile;
+  // Não precisamos mais verificar o clinicId
+  const isFormDisabled = isLoading;
 
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold text-hubAssist-primary">Cadastrar Novo Paciente</h2>
-      
-      {(profileLoading || isLoadingProfile) && (
-        <div className="p-4 bg-blue-50 rounded-md">
-          <p className="text-blue-700">Carregando dados do seu perfil...</p>
-        </div>
-      )}
       
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -316,11 +283,7 @@ const PatientForm = () => {
             className="btn-primary"
             disabled={isFormDisabled}
           >
-            {isLoading 
-              ? 'Salvando...' 
-              : (profileLoading || isLoadingProfile 
-                ? 'Carregando perfil...' 
-                : 'Salvar Paciente')}
+            {isLoading ? 'Salvando...' : 'Salvar Paciente'}
           </Button>
         </div>
       </form>

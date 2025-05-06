@@ -36,34 +36,12 @@ const PatientsList = () => {
       try {
         setLoading(true);
         console.log('Buscando pacientes para o usuário:', user.id);
-        console.log('Estado da sessão:', session ? 'Autenticado' : 'Não autenticado');
         
-        // Primeiro, buscar o perfil do usuário para obter a clinic_id
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('clinic_id')
-          .eq('id', user.id)
-          .maybeSingle();
-          
-        if (profileError) {
-          console.error('Erro ao buscar perfil do usuário:', profileError);
-          throw profileError;
-        }
-        
-        if (!profileData || !profileData.clinic_id) {
-          console.error('Perfil do usuário não encontrado ou sem clinic_id');
-          setPatients([]);
-          setLoading(false);
-          return;
-        }
-        
-        console.log('Clinic ID encontrado:', profileData.clinic_id);
-        
-        // Depois, buscar os pacientes da clínica
+        // Não precisamos mais buscar o perfil primeiro, 
+        // já que a política RLS usa a função get_clinic_id() para filtrar os pacientes
         const { data, error } = await supabase
           .from('patients')
           .select('*')
-          .eq('clinic_id', profileData.clinic_id)
           .order('created_at', { ascending: false });
           
         if (error) {
