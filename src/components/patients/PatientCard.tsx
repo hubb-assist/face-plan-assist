@@ -8,6 +8,15 @@ import { ptBR } from 'date-fns/locale';
 import { Image, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { 
+  AlertDialog, 
+  AlertDialogTrigger, 
+  AlertDialogContent,
+  AlertDialogTitle, 
+  AlertDialogDescription,
+  AlertDialogCancel, 
+  AlertDialogAction 
+} from "@/components/ui/alert-dialog";
 
 interface Patient {
   id: string;
@@ -29,10 +38,6 @@ const PatientCard = ({ patient, onDelete }: PatientCardProps) => {
   const age = differenceInYears(new Date(), patient.birthDate);
   
   const handleDelete = async () => {
-    if (!window.confirm('Tem certeza que deseja excluir este paciente?')) {
-      return;
-    }
-    
     try {
       setIsDeleting(true);
       
@@ -102,14 +107,42 @@ const PatientCard = ({ patient, onDelete }: PatientCardProps) => {
           >
             <Pencil className="h-4 w-4 mr-1" /> Editar
           </Button>
-          <Button 
-            variant="destructive" 
-            className="flex-1"
-            onClick={handleDelete}
-            disabled={isDeleting}
-          >
-            <Trash2 className="h-4 w-4 mr-1" /> Excluir
-          </Button>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="destructive" 
+                className="flex-1"
+                disabled={isDeleting}
+              >
+                <Trash2 className="h-4 w-4 mr-1" /> Excluir
+              </Button>
+            </AlertDialogTrigger>
+            
+            <AlertDialogContent>
+              <AlertDialogTitle>Excluir paciente?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação remove o paciente e a foto permanentemente.
+              </AlertDialogDescription>
+              
+              <div className="flex justify-end gap-2 mt-4">
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Excluindo...
+                    </>
+                  ) : (
+                    'Confirmar'
+                  )}
+                </AlertDialogAction>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
         <Link to={`/pacientes/${patient.id}/planejamento`} className="w-full">
           <Button className="w-full btn-primary">

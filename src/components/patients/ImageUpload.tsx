@@ -2,14 +2,24 @@
 import React, { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, Image } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Spinner } from '@/components/ui/spinner';
 
 interface ImageUploadProps {
   imagePreview: string | null;
   onImageChange: (file: File | null) => void;
   disabled?: boolean;
+  isUploading?: boolean;
+  uploadProgress?: number;
 }
 
-const ImageUpload = ({ imagePreview, onImageChange, disabled = false }: ImageUploadProps) => {
+const ImageUpload = ({ 
+  imagePreview, 
+  onImageChange, 
+  disabled = false,
+  isUploading = false,
+  uploadProgress = 0
+}: ImageUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleClick = () => {
@@ -72,7 +82,7 @@ const ImageUpload = ({ imagePreview, onImageChange, disabled = false }: ImageUpl
         onChange={handleFileChange}
         accept="image/jpeg,image/png"
         className="hidden"
-        disabled={disabled}
+        disabled={disabled || isUploading}
       />
       
       <div className="flex gap-2">
@@ -81,7 +91,8 @@ const ImageUpload = ({ imagePreview, onImageChange, disabled = false }: ImageUpl
           onClick={handleClick}
           variant="outline"
           className="flex-1"
-          disabled={disabled}
+          disabled={disabled || isUploading}
+          aria-label={imagePreview ? "Alterar imagem" : "Adicionar imagem"}
         >
           <Upload className="mr-2 h-4 w-4" />
           {imagePreview ? 'Alterar' : 'Adicionar'}
@@ -92,12 +103,22 @@ const ImageUpload = ({ imagePreview, onImageChange, disabled = false }: ImageUpl
             type="button" 
             variant="destructive"
             onClick={handleRemoveImage}
-            disabled={disabled}
+            disabled={disabled || isUploading}
           >
             Remover
           </Button>
         )}
       </div>
+
+      {isUploading && (
+        <div className="mt-2 w-full max-w-[250px]">
+          <div className="flex items-center gap-2 mb-1">
+            <Spinner size="sm" />
+            <span className="text-sm">Enviando... {uploadProgress.toFixed(0)}%</span>
+          </div>
+          <Progress value={uploadProgress} className="h-2 max-w-[60px] sm:max-w-full" />
+        </div>
+      )}
     </div>
   );
 };

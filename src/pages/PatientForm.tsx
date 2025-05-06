@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -16,6 +15,17 @@ import ImageUpload from '@/components/patients/ImageUpload';
 import { supabase } from '@/integrations/supabase/client';
 import InputMask from 'react-input-mask';
 import 'react-datepicker/dist/react-datepicker.css';
+import { Progress } from '@/components/ui/progress';
+import { Spinner } from '@/components/ui/spinner';
+import { 
+  AlertDialog, 
+  AlertDialogTrigger, 
+  AlertDialogContent,
+  AlertDialogTitle, 
+  AlertDialogDescription,
+  AlertDialogCancel, 
+  AlertDialogAction 
+} from "@/components/ui/alert-dialog";
 
 // Componente de input com máscara para o DatePicker
 const MaskedInput = forwardRef<HTMLInputElement, any>((props, ref) => (
@@ -69,6 +79,8 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingAddress, setIsFetchingAddress] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const maxDate = new Date();
   
   // Carregar dados para edição, se for o caso
@@ -178,6 +190,9 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
 
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
+      setIsUploading(true);
+      setUploadProgress(0);
+      
       const fileExt = file.name.split('.').pop();
       // Gerando um nome de arquivo único usando timestamp e random
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -187,7 +202,12 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
       
       const { error: uploadError, data } = await supabase.storage
         .from('patient_images')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          onUploadProgress: (event) => {
+            const progress = (event.loaded / event.total) * 100;
+            setUploadProgress(progress);
+          }
+        });
         
       if (uploadError) {
         console.error('Erro durante upload:', uploadError);
@@ -205,28 +225,26 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
     } catch (error) {
       console.error('Erro ao fazer upload da imagem:', error);
       return null;
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    // Validação dos campos
+  const submitForm = async () => {
+    // Validation code from handleSubmit...
     if (!formData.name || !formData.birthDate || !formData.gender || !formData.cpf) {
       toast.error("Por favor, preencha todos os campos obrigatórios");
-      setIsLoading(false);
       return;
     }
     
-    // Validação específica da data de nascimento
     if (isAfter(formData.birthDate, new Date())) {
       toast.error("Data de nascimento inválida");
-      setIsLoading(false);
       return;
     }
     
     try {
+      setIsLoading(true);
+      
       // Upload da imagem se fornecida
       let imageUrl = null;
       if (image) {
@@ -303,6 +321,11 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitForm();
+  };
+
   const handleImageChange = (file: File | null) => {
     setImage(file);
     
@@ -317,7 +340,7 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
     }
   };
 
-  const isFormDisabled = isLoading || isFetchingAddress;
+  const isFormDisabled = isLoading || isFetchingAddress || isUploading;
 
   return (
     <div className="space-y-6">
@@ -522,6 +545,8 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
                   imagePreview={imagePreview}
                   onImageChange={handleImageChange}
                   disabled={isFormDisabled}
+                  isUploading={isUploading}
+                  uploadProgress={uploadProgress}
                 />
                 <p className="text-xs text-muted-foreground mt-2">
                   Formatos aceitos: JPG, PNG. Tamanho máximo: 5MB
@@ -540,13 +565,41 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
           >
             Cancelar
           </Button>
-          <Button 
-            type="submit" 
-            className="btn-primary"
-            disabled={isFormDisabled}
-          >
-            {isLoading ? 'Salvando...' : (isEdit ? 'Atualizar Paciente' : 'Salvar Paciente')}
-          </Button>
+          
+          {isEdit ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  type="button" 
+                  className="btn-primary"
+                  disabled={isFormDisabled}
+                >
+                  {isLoading ? 'Salvando...' : 'Atualizar Paciente'}
+                </Button>
+              </AlertDialogTrigger>
+
+              <AlertDialogContent>
+                <AlertDialogTitle>Confirmar edição?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  As alterações serão salvas imediatamente.
+                </AlertDialogDescription>
+                <div className="flex justify-end gap-2 mt-4">
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction type="button" onClick={submitForm}>
+                    Salvar
+                  </AlertDialogAction>
+                </div>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button 
+              type="submit" 
+              className="btn-primary"
+              disabled={isFormDisabled}
+            >
+              {isLoading ? 'Salvando...' : 'Salvar Paciente'}
+            </Button>
+          )}
         </div>
       </form>
     </div>
