@@ -30,35 +30,53 @@ export type Database = {
       patients: {
         Row: {
           birth_date: string
+          cep: string | null
+          city: string | null
           clinic_id: string
           cpf: string
           created_at: string
+          district: string | null
           gender: string
           id: string
           image_url: string | null
           name: string
+          number: string | null
+          state: string | null
+          street: string | null
           user_id: string
         }
         Insert: {
           birth_date: string
+          cep?: string | null
+          city?: string | null
           clinic_id?: string
           cpf: string
           created_at?: string
+          district?: string | null
           gender: string
           id?: string
           image_url?: string | null
           name: string
+          number?: string | null
+          state?: string | null
+          street?: string | null
           user_id: string
         }
         Update: {
           birth_date?: string
+          cep?: string | null
+          city?: string | null
           clinic_id?: string
           cpf?: string
           created_at?: string
+          district?: string | null
           gender?: string
           id?: string
           image_url?: string | null
           name?: string
+          number?: string | null
+          state?: string | null
+          street?: string | null
           user_id?: string
         }
         Relationships: [

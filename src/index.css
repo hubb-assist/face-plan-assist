@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -105,4 +106,32 @@
   .btn-secondary {
     @apply bg-hubAssist-secondary text-white hover:bg-opacity-90;
   }
+}
+
+/* Estilos para o DatePicker */
+.react-datepicker {
+  font-family: inherit;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border-radius: var(--radius);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.react-datepicker__current-month {
+  @apply text-sm font-medium;
+}
+
+.react-datepicker__header {
+  @apply bg-background border-b border-border;
+}
+
+.react-datepicker__triangle {
+  @apply text-background;
 }

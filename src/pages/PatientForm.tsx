@@ -37,6 +37,12 @@ interface PatientFormProps {
     gender: string;
     cpf: string;
     image_url?: string;
+    cep?: string;
+    street?: string;
+    number?: string;
+    district?: string;
+    city?: string;
+    state?: string;
   };
   onSuccess?: () => void;
 }
@@ -51,11 +57,18 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
     birthDate: null as Date | null,
     gender: '',
     cpf: '',
+    cep: '',
+    street: '',
+    number: '',
+    district: '',
+    city: '',
+    state: ''
   });
   
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingAddress, setIsFetchingAddress] = useState(false);
   const maxDate = new Date();
   
   // Carregar dados para edição, se for o caso
@@ -66,6 +79,12 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
         birthDate: patient.birth_date ? new Date(patient.birth_date) : null,
         gender: patient.gender,
         cpf: patient.cpf,
+        cep: patient.cep || '',
+        street: patient.street || '',
+        number: patient.number || '',
+        district: patient.district || '',
+        city: patient.city || '',
+        state: patient.state || ''
       });
       
       if (patient.image_url) {
@@ -112,6 +131,48 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
       setFormData({ ...formData, birthDate: parsed });
     } else {
       setFormData({ ...formData, birthDate: date });
+    }
+  };
+
+  // Função para buscar endereço via CEP
+  const fetchAddress = async (cep: string) => {
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return;
+
+    try {
+      setIsFetchingAddress(true);
+      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await res.json();
+      
+      if (data.erro) {
+        toast.error('CEP não encontrado');
+        return;
+      }
+      
+      setFormData(prev => ({
+        ...prev,
+        street: data.logradouro || prev.street,
+        district: data.bairro || prev.district,
+        city: data.localidade || prev.city,
+        state: data.uf || prev.state
+      }));
+    } catch (error) {
+      console.error('Erro ao buscar endereço:', error);
+      toast.error('Erro ao buscar o endereço. Tente novamente.');
+    } finally {
+      setIsFetchingAddress(false);
+    }
+  };
+
+  // Handler para mudança no CEP
+  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData(prev => ({ ...prev, cep: value }));
+    
+    // Buscar endereço quando o CEP estiver completo
+    const cleanCep = value.replace(/\D/g, '');
+    if (cleanCep.length === 8) {
+      fetchAddress(value);
     }
   };
 
@@ -183,6 +244,12 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
         gender: formData.gender,
         cpf: formData.cpf,
         user_id: user?.id,
+        cep: formData.cep || null,
+        street: formData.street || null,
+        number: formData.number || null,
+        district: formData.district || null,
+        city: formData.city || null,
+        state: formData.state || null
       };
       
       // Adicionar a URL da imagem apenas se tiver uma nova
@@ -250,7 +317,7 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
     }
   };
 
-  const isFormDisabled = isLoading;
+  const isFormDisabled = isLoading || isFetchingAddress;
 
   return (
     <div className="space-y-6">
@@ -277,7 +344,7 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="form-input-group">
                       <Label htmlFor="birthDate" className="required-field">Data de nascimento</Label>
                       
@@ -324,20 +391,123 @@ const PatientForm = ({ patient, onSuccess }: PatientFormProps = {}) => {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    <div className="form-input-group">
+                      <Label htmlFor="cpf" className="required-field">CPF</Label>
+                      <InputMask
+                        mask="999.999.999-99"
+                        value={formData.cpf}
+                        onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+                        disabled={isFormDisabled}
+                      >
+                        {(inputProps) => (
+                          <Input
+                            {...inputProps}
+                            id="cpf"
+                            className="max-w-sm"
+                            placeholder="000.000.000-00"
+                            required
+                          />
+                        )}
+                      </InputMask>
+                    </div>
                   </div>
 
-                  <div className="form-input-group">
-                    <Label htmlFor="cpf" className="required-field">CPF</Label>
-                    <Input
-                      id="cpf"
-                      name="cpf"
-                      value={formData.cpf}
-                      onChange={handleInputChange}
-                      placeholder="000.000.000-00"
-                      maxLength={14}
-                      required
-                      disabled={isFormDisabled}
-                    />
+                  {/* Endereço */}
+                  <div className="pt-2 border-t">
+                    <h3 className="text-lg font-medium mb-3">Endereço</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="form-input-group">
+                        <Label htmlFor="cep">CEP</Label>
+                        <InputMask
+                          mask="99999-999"
+                          value={formData.cep}
+                          onChange={handleCepChange}
+                          disabled={isFormDisabled}
+                        >
+                          {(inputProps) => (
+                            <Input
+                              {...inputProps}
+                              id="cep"
+                              className="max-w-xs"
+                              placeholder="00000-000"
+                            />
+                          )}
+                        </InputMask>
+                        {isFetchingAddress && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Buscando endereço...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+                      <div className="md:col-span-3 form-input-group">
+                        <Label htmlFor="street">Logradouro</Label>
+                        <Input
+                          id="street"
+                          name="street"
+                          value={formData.street}
+                          onChange={handleInputChange}
+                          placeholder="Rua, Avenida, etc."
+                          disabled={isFormDisabled}
+                        />
+                      </div>
+
+                      <div className="form-input-group">
+                        <Label htmlFor="number">Número</Label>
+                        <Input
+                          id="number"
+                          name="number"
+                          value={formData.number}
+                          onChange={handleInputChange}
+                          placeholder="Nº"
+                          disabled={isFormDisabled}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                      <div className="form-input-group">
+                        <Label htmlFor="district">Bairro</Label>
+                        <Input
+                          id="district"
+                          name="district"
+                          value={formData.district}
+                          onChange={handleInputChange}
+                          placeholder="Bairro"
+                          disabled={isFormDisabled}
+                        />
+                      </div>
+
+                      <div className="form-input-group">
+                        <Label htmlFor="city">Cidade</Label>
+                        <Input
+                          id="city"
+                          name="city"
+                          value={formData.city}
+                          onChange={handleInputChange}
+                          placeholder="Cidade"
+                          disabled={isFormDisabled}
+                        />
+                      </div>
+
+                      <div className="form-input-group">
+                        <Label htmlFor="state">Estado</Label>
+                        <Input
+                          id="state"
+                          name="state"
+                          value={formData.state}
+                          onChange={handleInputChange}
+                          placeholder="UF"
+                          maxLength={2}
+                          className="uppercase"
+                          disabled={isFormDisabled}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
